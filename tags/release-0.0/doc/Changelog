@@ -1,0 +1,151 @@
+16 February 2007: Wouter
+	- Updated testbed script, works better by using make on remote end.
+	- removed check decls, we can compile without them.
+	- makefile supports LIBOBJ replacements.
+	- docs checks ignore compat code.
+	- added util/mini-event.c and .h, a select based alternative used with
+	  ./configure --with-libevent=no
+	  It is limited to 1024 file descriptors, and has less features.
+	- will not create ip6 sockets if ip6 not on the machine.
+
+15 February 2007: Wouter
+	- port to FreeBSD 4.11 Dec Alpha. Also works on Solaris 10 sparc64,
+	  Solaris 9, FreeBSD 6, Linux i386 and OSX powerpc.
+	- malloc rndstate, so that it is aligned for access.
+	- fixed rbtree cleanup with postorder traverse.
+	- fixed pending messages are deleted when handled.
+	- You can control verbosity; default is not verbose, every -v
+	  adds more verbosity.
+
+14 February 2007: Wouter
+	- Included configure.ac changes from ldns.
+	- detect (some) headers before the standards check.
+	- do not use isblank to test c99, since its not available on solaris9.
+	- review of testcode.
+		* entries in a RANGE are no longer reversed.
+		* print name of file with replay entry parse errors.
+	- port to OSX: cast to int for some prints of sizet.
+	- Makefile copies ldnstestpkts.c before doing dependencies on it.
+
+13 February 2007: Wouter
+	- work on fake events, first fwd replay works.
+	- events can do timeouts and errors on queries to servers.
+	- test package that runs replay scenarios.
+
+12 February 2007: Wouter
+	- work on fake events.
+
+9 February 2007: Wouter
+	- replay file reading.
+	- fake event setup, it creates fake structures, and teardowns,
+	  added signal callbacks to reply to be able to fake those,
+	  and main structure of event replay routines.
+
+8 February 2007: Wouter
+	- added tcp test.
+	- replay storage.
+	- testcode/fake_event work.
+
+7 February 2007: Wouter
+	- return answer with the same ID as query was sent with.
+	- created udp forwarder test. I've done some effort to make it perform
+	  quickly. After servers are created, no big sleep statements but
+	  it checks the logfiles to see if servers have come up. Takes 0.14s.
+	- set addrlen value when calling recvfrom.
+	- comparison of addrs more portable.
+	- LIBEVENT option for testbed to set libevent directory.
+	- work on tcp input.
+
+6 February 2007: Wouter
+	- reviewed code and improved in places.
+
+5 February 2007: Wouter
+	- Picked up stdc99 and other define tests from ldns. Improved
+	  POSIX define test to include getaddrinfo.
+	- defined constants for netevent callback error code.
+	- unit test for strisip6.
+
+2 February 2007: Wouter
+	- Created udp4 and udp6 port arrays to provide service for both
+	  address families.
+	- uses IPV6_USE_MIN_MTU for udp6 ,IPV6_V6ONLY to make ip6 sockets.
+	- listens on both ip4 and ip6 ports to provide correct return address.
+	- worker fwder address filled correctly.
+	- fixup timer code.
+	- forwards udp queries and sends answer.
+
+1 February 2007: Wouter
+	- outside network more UDP work.
+	- moved * closer to type.
+	- comm_timer object and events.
+
+31 January 2007: Wouter
+	- Added makedist.sh script to make release tarball.
+	- Removed listen callback layer, did not add anything.
+	- Added UDP recv to netevent, worker callback for udp.
+	- netevent communication reply storage structure.
+	- minimal query header sanity checking for worker.
+	- copied over rbtree implementation from NSD (BSD licensed too).
+	- outgoing network query service work.
+
+30 January 2007: Wouter
+	- links in example/ldns-testpkts.c and .h for premade packet support.
+	- added callback argument to listen_dnsport and daemon/worker.
+
+29 January 2007: Wouter
+	- unbound.8 a short manpage.
+
+26 January 2007: Wouter
+	- fixed memleak.
+	- make lint works on BSD and Linux (openssl defines).
+	- make tags works.
+	- testbound program start.
+
+25 January 2007: Wouter
+	- fixed lint so it may work on BSD.
+	- put license into header of every file.
+	- created verbosity flag.
+	- fixed libevent configure flag.
+	- detects event_base_free() in new libevent 1.2 version.
+	- getopt in daemon. fatal_exit() and verbose() logging funcs.
+	- created log_assert, that throws assertions to the logfile.
+	- listen_dnsport service. Binds ports.
+
+24  January 2007: Wouter
+	- cleaned up configure.ac.
+
+23  January 2007: Wouter
+	- added libevent to configure to link with.
+	- util/netevent setup work.
+	- configure searches for libevent.
+	- search for libs at end of configure (when other headers and types
+	  have been found).
+	- doxygen works with ATTR_UNUSED().
+	- util/netevent implementation.
+
+22  January 2007: Wouter
+	- Designed header file for network communication.
+
+16  January 2007: Wouter
+	- added readme.svn and readme.tests.
+
+4 January 2007: Wouter
+	- Testbed script (run on multiple platforms the test set).
+	  Works on Sunos9, Sunos10, FreeBSD 6.1, Fedora core 5.
+	- added unit test tpkg.
+
+3 January 2007: Wouter
+	- committed first set of files into subversion repository.
+	  svn co svn+ssh://unbound.net/svn/unbound
+	  You need a ssh login.  There is no https access yet.
+	- Added LICENSE, the BSD license.
+	- Added doc/README with compile help.
+	- main program stub and quiet makefile.
+	- minimal logging service (to stderr).
+	- added postcommit hook that serves emails.
+	- added first test 00-lint. postcommit also checks if build succeeds.
+	- 01-doc: doxygen doc target added for html docs. And stringent test
+	  on documented files, functions and parameters.
+
+15 December 2006: Wouter
+	- Created Makefile.in and configure.ac.

@@ -1,0 +1,21 @@
+README for Unbound @version@
+Copyright 2007 NLnet Labs
+http://unbound.net
+
+This software is under BSD license, see LICENSE for details.
+
+* Needs the following libraries
+  * ldns	http://www.nlnetlabs.nl/ldns/			(BSD license)
+  * libevent	http://www.monkey.org/~provos/libevent/		(BSD license)
+
+* Make and install: ./configure; make
+  * --with-ldns=/path/to/ldns
+  * --with-libevent=/path/to/libevent
+  	Can be set to either the system install or the build directory.
+	--with-libevent=no gives an alternative to libevent (based on select).
+
+* Create build environment 
+  * run libtoolize -c if config.sub is missing.
+  * autoreconf (autoheader && autoconf), if ./configure is missing.
+
+* mailto:wouter@nlnetlabs.nl

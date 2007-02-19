@@ -1,0 +1,125 @@
+# Copyright 2007 NLnet Labs
+# See the file LICENSE for the license
+# 
+# Standard installation pathnames
+
+QUIET=yes
+ifeq "$(QUIET)" "yes"
+  Q=@
+  INFO=@echo
+else
+  Q=
+  INFO=@:
+endif
+
+SHELL=@SHELL@
+VERSION=@PACKAGE_VERSION@
+srcdir=@srcdir@
+prefix=@prefix@
+exec_prefix=@exec_prefix@
+bindir=@bindir@
+mandir=@mandir@
+libdir=@libdir@
+datarootdir=@datarootdir@
+datadir=@datadir@
+includedir=@includedir@
+doxygen=@doxygen@
+libtool=@libtool@
+ldnsdir=@ldnsdir@
+
+CC=@CC@
+CPPFLAGS=-I. @CPPFLAGS@ @DEFS@
+CFLAGS=-I. @CFLAGS@
+LDFLAGS=@LDFLAGS@
+LIBS=@LIBS@
+LIBOBJS=@LIBOBJS@
+RUNTIME_PATH=@RUNTIME_PATH@
+DATE=$(shell date +%Y%m%d)
+LIBTOOL=$(libtool)
+ifeq "$(QUIET)" "yes"
+  LIBTOOL+=--quiet
+endif
+BUILD=build/
+
+LINT=splint
+LINTFLAGS=+quiet -weak -warnposix -unrecog -Din_addr_t=uint32_t -Du_int=unsigned -Du_char=uint8_t -preproc
+# compat with openssl linux edition.
+LINTFLAGS+="-DBN_ULONG=unsigned long" -Dkrb5_int32=int "-Dkrb5_ui_4=unsigned int" -DPQ_64BIT=uint64_t
+
+INSTALL=$(srcdir)/install-sh 
+
+COMMON_SRC=$(wildcard services/*.c util/*.c)
+COMMON_OBJ=$(addprefix $(BUILD),$(COMMON_SRC:.c=.o))
+COMPAT_OBJ=$(addprefix $(BUILD)compat/,$(LIBOBJS))
+UNITTEST_SRC=testcode/unitmain.c $(COMMON_SRC)
+UNITTEST_OBJ=$(addprefix $(BUILD),$(UNITTEST_SRC:.c=.o)) $(COMPAT_OBJ)
+DAEMON_SRC=$(wildcard daemon/*.c) $(COMMON_SRC)
+DAEMON_OBJ=$(addprefix $(BUILD),$(DAEMON_SRC:.c=.o)) $(COMPAT_OBJ)
+TESTBOUND_SRC=testcode/testbound.c testcode/ldns-testpkts.c daemon/worker.c testcode/replay.c testcode/fake_event.c $(filter-out util/netevent.c services/listen_dnsport.c services/outside_network.c, $(COMMON_SRC))
+TESTBOUND_OBJ=$(addprefix $(BUILD),$(TESTBOUND_SRC:.c=.o)) $(COMPAT_OBJ)
+ALL_SRC=$(COMMON_SRC) $(UNITTEST_SRC) $(DAEMON_SRC) $(TESTBOUND_SRC)
+ALL_OBJ=$(addprefix $(BUILD),$(ALL_SRC:.c=.o) $(addprefix compat/,$(LIBOBJS))) $(COMPAT_OBJ)
+
+COMPILE=$(LIBTOOL) --tag=CC --mode=compile $(CC) $(CPPFLAGS) $(CFLAGS)
+LINK=$(LIBTOOL) --tag=CC --mode=link $(CC) $(CFLAGS) $(LDFLAGS)
+LINK_LIB=$(LIBTOOL) --tag=CC --mode=link $(CC) $(CFLAGS) $(LDFLAGS) -release $(VERSION)
+
+$(BUILD)%.o:    $(srcdir)/%.c 
+	$(INFO) Build $<
+	@if test ! -d $(dir $@); then $(INSTALL) -d $(patsubst %/,%,$(dir $@)); fi
+	$Q$(COMPILE) -c $< -o $@
+
+.PHONY:	clean realclean doc lint all 
+
+all:	$(COMMON_OBJ) unbound unittest testbound
+
+unbound:	$(DAEMON_OBJ)
+	$(INFO) Link $@
+	$Q$(LINK) -o $@ $^ $(LIBS)
+
+unittest:	$(UNITTEST_OBJ)
+	$(INFO) Link $@
+	$Q$(LINK) -o $@ $^ $(LIBS)
+
+testbound:	$(TESTBOUND_OBJ)
+	$(INFO) Link $@
+	$Q$(LINK) -o $@ $^ $(LIBS)
+
+testcode/ldns-testpkts.c:	$(ldnsdir)/examples/ldns-testpkts.c \
+			$(ldnsdir)/examples/ldns-testpkts.h
+	cp $(ldnsdir)/examples/ldns-testpkts.c testcode/ldns-testpkts.c
+	cp $(ldnsdir)/examples/ldns-testpkts.h testcode/ldns-testpkts.h
+
+clean:
+	rm -f *.o *.d *.lo *~ tags
+	rm -rf autom4te.cache .libs build doc/html
+
+realclean: clean
+	rm -f config.status config.log config.h.in config.h
+	rm -f configure config.sub config.guess ltmain.sh aclocal.m4 libtool
+	rm -f Makefile 
+
+lint:
+	$Qfor i in $(sort $(ALL_SRC)); do \
+		echo lint $$i; \
+		$(LINT) $(LINTFLAGS) -I. -I$(srcdir) -I$(ldnsdir)/include $(srcdir)/$$i ; \
+		if [ $$? -ne 0 ] ; then exit 1 ; fi ; \
+	done
+
+tags:	$(srcdir)/*.[ch] $(srcdir)/*/*.[ch]
+	ctags  -f $(srcdir)/tags $(srcdir)/*.[ch] $(srcdir)/*/*.[ch]
+
+doc:
+ifdef doxygen
+	$(doxygen) $(srcdir)/doc/unbound.doxygen
+endif
+
+# Automatic dependencies.
+$(BUILD)%.d: $(srcdir)/%.c
+	$(INFO) Depend $<
+	@if test ! -d $(dir $@); then $(INSTALL) -d $(patsubst %/,%,$(dir $@)); fi
+	$Q$(SHELL) -ec '$(CC) -MM $(CPPFLAGS) $(CFLAGS) $< \
+	              | sed '\''s!\(.*\)\.o[ :]*!$(dir $@)\1.o $@ : !g'\'' > $@; \
+	              [ -s $@ ] || rm -f $@'
+
+-include $(addprefix $(BUILD),$(ALL_SRC:.c=.d))
