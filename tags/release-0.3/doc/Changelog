@@ -1,0 +1,478 @@
+9 May 2007: Wouter
+	- outside network cleans up waiting tcp queries on exit.
+	- fallback to TCP.
+	- testbound replay with retry in TCP mode.
+	- tpkg test for retry in TCP mode, against ldns-testns server.
+	- daemon checks max number of open files and complains if not enough.
+	- test where data expires in the cache.
+	- compiletests: fixed empty body ifstatements in alloc.c, in case
+	  locks are disabled.
+
+8 May 2007: Wouter
+	- outgoing network keeps list of available tcp buffers for outgoing 
+	  tcp queries.
+	- outgoing-num-tcp config option.
+	- outgoing network keeps waiting list of queries waiting for buffer.
+	- netevent supports outgoing tcp commpoints, nonblocking connects.
+
+7 May 2007: Wouter
+	- EDNS read from query, used to make reply smaller.
+	- advertised edns value constants.
+	- EDNS BADVERS response, if asked for too high edns version.
+	- EDNS extended error reponses once the EDNS record from the query
+	  has successfully been parsed.
+
+4 May 2007: Wouter
+	- msgreply sizefunc is more accurate.
+	- config settings for rrset cache size and slabs.
+	- hashtable insert takes argument so that a thread can use its own
+	  alloc cache to store released keys.
+	- alloc cache special_release() locks if necessary.
+	- rrset trustworthiness type added.
+	- thread keeps a scratchpad region for handling messages.
+	- writev used in netevent to write tcp length and data after another.
+	  This saves a roundtrip on tcp replies.
+	- test for one rrset updated in the cache.
+	- test for one rrset which is not updated, as it is not deemed
+	  trustworthy enough.
+	- test for TTL refreshed in rrset.
+
+3 May 2007: Wouter
+	- fill refs. Use new parse and encode to answer queries.
+	- stores rrsets in cache.
+	- uses new msgreply format in cache.
+
+2 May 2007: Wouter
+	- dname unit tests in own file and spread out neatly in functions.
+	- more dname unit tests.
+	- message encoding creates truncated TC flagged messages if they do 
+	  not fit, and will leave out (whole)rrsets from additional if needed.
+
+1 May 2007: Wouter
+	- decompress query section, extremely lenient acceptance.
+	  But only for answers from other servers, not for plain queries.
+	- compression and decompression test cases.
+	- some stats added.
+	- example.conf interface: line is changed from 127.0.0.1 which leads
+	  to problems if used (restricting communication to the localhost),
+	  to a documentation and test address.
+
+27 April 2007: Wouter
+	- removed iov usage, it is not good for dns message encoding.
+	- owner name compression more optimal.
+	- rrsig owner name compression.
+	- rdata domain name compression.
+
+26 April 2007: Wouter
+	- floating point exception fix in lock-verify.
+	- lint uses make dependency
+	- fixup lint in dname owner domain name compression code.
+	- define for offset range that can be compressed to.
+
+25 April 2007: Wouter
+	- prettier code; parse_rrset->type kept in host byte order.
+	- datatype used for hashvalue of converted rrsig structure.
+	- unit test compares edns section data too.
+
+24 April 2007: Wouter
+	- ttl per RR, for RRSIG rrsets and others.
+	- dname_print debug function.
+	- if type is not known, size calc will skip DNAME decompression.
+	- RRSIG parsing and storing and putting in messages.
+	- dnssec enabled unit tests (from nlnetlabs.nl and se queries).
+	- EDNS extraction routine.
+
+20 April 2007: Wouter
+	- code comes through all of the unit tests now.
+	- disabled warning about spurious extra data.
+	- documented the RRSIG parse plan in msgparse.h.
+	- rrsig reading and outputting.
+
+19 April 2007: Wouter
+	- fix unit test to actually to tests.
+	- fix write iov helper, and fakevent code.
+	- extra builtin testcase (small packet).
+	- ttl converted to network format in packets.
+	- flags converted correctly
+	- rdatalen off by 2 error fixup.
+	- uses less iov space for header.
+
+18 April 2007: Wouter
+	- review of msgparse code.
+	- smaller test cases.
+
+17 April 2007: Wouter
+	- copy and decompress dnames.
+	- store calculated hash value too.
+	- routine to create message out of stored information.
+	- util/data/msgparse.c for message parsing code.
+	- unit test, and first fixes because of test.
+		* forgot rrset_count addition.
+		* did & of ptr on stack for memory position calculation.
+		* dname_pkt_copy forgot to read next label length.
+	- test from file and fixes
+		* double frees fixed in error conditions.
+		* types with less than full rdata allowed by parser.
+		  Some dynamic update packets seem to use it.
+
+16 April 2007: Wouter
+	- following a small change in LDNS, parsing code calculates the
+	  memory size to allocate for rrs.
+	- code to handle ID creation.
+
+13 April 2007: Wouter
+	- parse routines. Code that parses rrsets, rrs.
+
+12 April 2007: Wouter
+	- dname compare routine that preserves case, with unit tests.
+	
+11 April 2007: Wouter
+	- parse work - dname packet parse, msgparse, querysection parse,
+	  start of sectionparse.
+
+10 April 2007: Wouter
+	- Improved alignment of reply_info packet, nice for 32 and 64 bit.
+	- Put RRset counts in reply_info, because the number of RRs can change
+	  due to RRset updates.
+	- import of region-allocator code from nsd.
+	- set alloc special type to ub_packed_rrset_key.
+	  Uses lruhash entry overflow chain next pointer in alloc cache.
+	- doxygen documentation for region-allocator.
+	- setup for parse scratch data.
+
+5 April 2007: Wouter
+	- discussed packed rrset with Jelte.
+
+4 April 2007: Wouter
+	- moved to version 0.3.
+	- added util/data/dname.c
+	- layout of memory for rrsets.
+
+3 April 2007: Wouter
+	- detect sign of msghdr.msg_iovlen so that the cast to that type
+	  in netevent (which is there to please lint) can be correct.
+	  The type on several OSes ranges from int, int32, uint32, size_t.
+	  Detects unsigned or signed using math trick.
+	- constants for DNS flags. 
+	- compilation without locks fixup.
+	- removed include of unportable header from lookup3.c.
+	- more portable use of struct msghdr.
+	- casts for printf warning portability.
+	- tweaks to tests to port them to the testbed.
+	- 0.2 tag created.
+
+2 April 2007: Wouter
+	- check sizes of udp received messages, not too short.
+	- review changes. Some memmoves can be memcpys: 4byte aligned.
+	  set id correctly on cached answers. 
+	- review changes msgreply.c, memleak on error condition. AA flag
+	  clear on cached reply. Lowercase queries on hashing.
+	  unit test on lowercasing. Test AA bit not set on cached reply.
+	  Note that no TTLs are managed.
+
+29 March 2007: Wouter
+	- writev or sendmsg used when answering from cache.
+	  This avoids a copy of the data.
+	- do not do useless byteswap on query id. Store reply flags in uint16
+	  for easier access (and no repeated byteswapping).
+	- reviewed code.
+	- configure detects and config.h includes sys/uio.h for writev decl.
+
+28 March 2007: Wouter
+	- new config option: num-queries-per-thread.
+	- added tpkg test for answering three queries at the same time
+	  using one thread (from the query service list).
+
+27 March 2007: Wouter
+	- added test for cache and not cached answers, in testbound replays.
+	- testbound can give config file and commandline options from the
+	  replay file to unbound.
+	- created test that checks if items drop out of the cache.
+	- added word 'partitioned hash table' to documentation on slab hash.
+	  A slab hash is a partitioned hash table.
+	- worker can handle multiple queries at a time.
+
+26 March 2007: Wouter
+	- config settings for slab hash message cache.
+	- test for cached answer.
+	- Fixup deleting fake answer from testbound list.
+
+23 March 2007: Wouter
+	- review of yesterday's commits.
+	- covered up memory leak of the entry locks.
+	- answers from the cache correctly. Copies flags correctly.
+	- sanity check for incoming query replies.
+	- slabbed hash table. Much nicer contention, need dual cpu to see.
+
+22 March 2007: Wouter
+	- AIX configure check.
+	- lock-verify can handle references to locks that are created
+	  in files it has not yet read in.
+	- threaded hash table test. 
+	- unit test runs lock-verify afterwards and checks result.
+	- need writelock to update data on hash_insert.
+	- message cache code, msgreply code.
+
+21 March 2007: Wouter
+	- unit test of hash table, fixup locking problem in table_grow().
+	- fixup accounting of sizes for removing items from hashtable.
+	- unit test for hash table, single threaded test of integrity.
+	- lock-verify reports errors nicely. More quiet in operation.
+
+16 March 2007: Wouter
+	- lock-verifier, checks consistent order of locking.
+
+14 March 2007: Wouter
+	- hash table insert (and subroutines) and lookup implemented.
+	- hash table remove.
+	- unit tests for hash internal bin, lru functions.
+
+13 March 2007: Wouter
+	- lock_unprotect in checklocks.
+	- util/storage/lruhash.h for LRU hash table structure.
+
+12 March 2007: Wouter
+	- configure.ac moved to 0.2.
+	- query_info and replymsg util/data structure.
+
+9 March 2007: Wouter
+	- added rwlock writelock checking.
+	  So it will keep track of the writelock, and readlocks are enforced
+	  to not change protected memory areas.
+	- log_hex function to dump hex strings to the logfile.
+	- checklocks zeroes its destroyed lock after checking memory areas.
+	- unit test for alloc.
+	- identifier for union in checklocks to please older compilers.
+	- created 0.1 tag.
+
+8 March 2007: Wouter
+	- Reviewed checklock code.
+
+7 March 2007: Wouter
+	- created a wrapper around thread calls that performs some basic
+	  checking for data race and deadlock, and basic performance 
+	  contention measurement.
+
+6 March 2007: Wouter
+	- Testbed works with threading (different machines, different options).
+	- alloc work, does the special type.
+
+2 March 2007: Wouter
+	- do not compile fork funcs unless needed. Otherwise will give
+	  type errors as their typedefs have not been enabled.
+	- log shows thread numbers much more nicely (and portably).
+	- even on systems with nonthreadsafe libevent signal handling,
+	  unbound will exit if given a signal.
+	  Reloads will not work, and exit is not graceful.
+	- start of alloc framework layout.
+
+1 March 2007: Wouter
+	- Signals, libevent and threads work well, with libevent patch and
+	  changes to code (close after event_del).
+	- set ipc pipes nonblocking.
+
+27 February 2007: Wouter
+	- ub_thread_join portable definition.
+	- forking is used if no threading is available.
+	  Tested, it works, since pipes work across processes as well.
+	  Thread_join is replaced with waitpid. 
+	- During reloads the daemon will temporarily handle signals,
+	  so that they do not result in problems.
+	- Also randomize the outgoing port range for tests.
+	- If query list is full, will stop selecting listening ports for read.
+	  This makes all threads service incoming requests, instead of one.
+	  No memory is leaking during reloads, service of queries, etc.
+	- test that uses ldns-testns -f to test threading. Have to answer
+	  three queries at the same time.
+	- with verbose=0 operates quietly.
+
+26 February 2007: Wouter
+	- ub_random code used to select ID and port.
+	- log code prints thread id.
+	- unbound can thread itself, with reload(HUP) and quit working
+	  correctly.
+	- don't open pipes for #0, doesn't need it.
+	- listens to SIGTERM, SIGQUIT, SIGINT (all quit) and SIGHUP (reload).
+
+23 February 2007: Wouter
+	- Can do reloads on sigHUP. Everything is stopped, and freed,
+	  except the listening ports. Then the config file is reread.
+	  And everything is started again (and listening ports if needed).
+	- Ports for queries are shared.
+	- config file added interface:, chroot: and username:.
+	- config file: directory, logfile, pidfile. And they work too.
+	- will daemonize by default now. Use -d to stay in the foreground.
+	- got BSD random[256 state] code, made it threadsafe. util/random.
+
+22 February 2007: Wouter
+	- Have a config file. Removed commandline options, moved to config.
+	- tests use config file.
+
+21 February 2007: Wouter
+	- put -c option in man page.
+	- minievent fd array capped by FD_SETSIZE.
+
+20 February 2007: Wouter
+	- Added locks code and pthread spinlock detection.
+	- can use no locks, or solaris native thread library.
+	- added yacc and lex configure, and config file parsing code.
+	  also makedist.sh, and manpage.
+	- put include errno.h in config.h
+
+19 February 2007: Wouter
+	- Created 0.0 svn tag.
+	- added acx_pthread.m4 autoconf check for pthreads from 
+	  the autoconf archive. It is GPL-with-autoconf-exception Licensed.
+	  You can specify --with-pthreads, or --without-pthreads to configure.
+
+16 February 2007: Wouter
+	- Updated testbed script, works better by using make on remote end.
+	- removed check decls, we can compile without them.
+	- makefile supports LIBOBJ replacements.
+	- docs checks ignore compat code.
+	- added util/mini-event.c and .h, a select based alternative used with
+	  ./configure --with-libevent=no
+	  It is limited to 1024 file descriptors, and has less features.
+	- will not create ip6 sockets if ip6 not on the machine.
+
+15 February 2007: Wouter
+	- port to FreeBSD 4.11 Dec Alpha. Also works on Solaris 10 sparc64,
+	  Solaris 9, FreeBSD 6, Linux i386 and OSX powerpc.
+	- malloc rndstate, so that it is aligned for access.
+	- fixed rbtree cleanup with postorder traverse.
+	- fixed pending messages are deleted when handled.
+	- You can control verbosity; default is not verbose, every -v
+	  adds more verbosity.
+
+14 February 2007: Wouter
+	- Included configure.ac changes from ldns.
+	- detect (some) headers before the standards check.
+	- do not use isblank to test c99, since its not available on solaris9.
+	- review of testcode.
+		* entries in a RANGE are no longer reversed.
+		* print name of file with replay entry parse errors.
+	- port to OSX: cast to int for some prints of sizet.
+	- Makefile copies ldnstestpkts.c before doing dependencies on it.
+
+13 February 2007: Wouter
+	- work on fake events, first fwd replay works.
+	- events can do timeouts and errors on queries to servers.
+	- test package that runs replay scenarios.
+
+12 February 2007: Wouter
+	- work on fake events.
+
+9 February 2007: Wouter
+	- replay file reading.
+	- fake event setup, it creates fake structures, and teardowns,
+	  added signal callbacks to reply to be able to fake those,
+	  and main structure of event replay routines.
+
+8 February 2007: Wouter
+	- added tcp test.
+	- replay storage.
+	- testcode/fake_event work.
+
+7 February 2007: Wouter
+	- return answer with the same ID as query was sent with.
+	- created udp forwarder test. I've done some effort to make it perform
+	  quickly. After servers are created, no big sleep statements but
+	  it checks the logfiles to see if servers have come up. Takes 0.14s.
+	- set addrlen value when calling recvfrom.
+	- comparison of addrs more portable.
+	- LIBEVENT option for testbed to set libevent directory.
+	- work on tcp input.
+
+6 February 2007: Wouter
+	- reviewed code and improved in places.
+
+5 February 2007: Wouter
+	- Picked up stdc99 and other define tests from ldns. Improved
+	  POSIX define test to include getaddrinfo.
+	- defined constants for netevent callback error code.
+	- unit test for strisip6.
+
+2 February 2007: Wouter
+	- Created udp4 and udp6 port arrays to provide service for both
+	  address families.
+	- uses IPV6_USE_MIN_MTU for udp6 ,IPV6_V6ONLY to make ip6 sockets.
+	- listens on both ip4 and ip6 ports to provide correct return address.
+	- worker fwder address filled correctly.
+	- fixup timer code.
+	- forwards udp queries and sends answer.
+
+1 February 2007: Wouter
+	- outside network more UDP work.
+	- moved * closer to type.
+	- comm_timer object and events.
+
+31 January 2007: Wouter
+	- Added makedist.sh script to make release tarball.
+	- Removed listen callback layer, did not add anything.
+	- Added UDP recv to netevent, worker callback for udp.
+	- netevent communication reply storage structure.
+	- minimal query header sanity checking for worker.
+	- copied over rbtree implementation from NSD (BSD licensed too).
+	- outgoing network query service work.
+
+30 January 2007: Wouter
+	- links in example/ldns-testpkts.c and .h for premade packet support.
+	- added callback argument to listen_dnsport and daemon/worker.
+
+29 January 2007: Wouter
+	- unbound.8 a short manpage.
+
+26 January 2007: Wouter
+	- fixed memleak.
+	- make lint works on BSD and Linux (openssl defines).
+	- make tags works.
+	- testbound program start.
+
+25 January 2007: Wouter
+	- fixed lint so it may work on BSD.
+	- put license into header of every file.
+	- created verbosity flag.
+	- fixed libevent configure flag.
+	- detects event_base_free() in new libevent 1.2 version.
+	- getopt in daemon. fatal_exit() and verbose() logging funcs.
+	- created log_assert, that throws assertions to the logfile.
+	- listen_dnsport service. Binds ports.
+
+24  January 2007: Wouter
+	- cleaned up configure.ac.
+
+23  January 2007: Wouter
+	- added libevent to configure to link with.
+	- util/netevent setup work.
+	- configure searches for libevent.
+	- search for libs at end of configure (when other headers and types
+	  have been found).
+	- doxygen works with ATTR_UNUSED().
+	- util/netevent implementation.
+
+22  January 2007: Wouter
+	- Designed header file for network communication.
+
+16  January 2007: Wouter
+	- added readme.svn and readme.tests.
+
+4 January 2007: Wouter
+	- Testbed script (run on multiple platforms the test set).
+	  Works on Sunos9, Sunos10, FreeBSD 6.1, Fedora core 5.
+	- added unit test tpkg.
+
+3 January 2007: Wouter
+	- committed first set of files into subversion repository.
+	  svn co svn+ssh://unbound.net/svn/unbound
+	  You need a ssh login.  There is no https access yet.
+	- Added LICENSE, the BSD license.
+	- Added doc/README with compile help.
+	- main program stub and quiet makefile.
+	- minimal logging service (to stderr).
+	- added postcommit hook that serves emails.
+	- added first test 00-lint. postcommit also checks if build succeeds.
+	- 01-doc: doxygen doc target added for html docs. And stringent test
+	  on documented files, functions and parameters.
+
+15 December 2006: Wouter
+	- Created Makefile.in and configure.ac.
