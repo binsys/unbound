@@ -1,0 +1,237 @@
+.\"
+.\" unbound.conf.5 -- unbound.conf manual
+.\"
+.\" Copyright (c) 2007, NLnet Labs. All rights reserved.
+.\"
+.\" See LICENSE for the license.
+.\"
+.\"
+.Dd @date@
+.Os FreeBSD
+.Dt unbound.conf 5
+.Sh NAME
+.Nm unbound.conf
+.Nd Unbound configuration file.
+.Sh SYNOPSIS
+.Nm unbound.conf
+.Sh DESCRIPTION
+.Ic unbound.conf
+is used to configure
+.Xr unbound 8 .
+The file format has attributes and values. Some attributes have attributes inside them.
+The notation is: attribute: value.
+
+Comments start with # and last to the end of line. Empty lines are
+ignored as is whitespace at the beginning of a line.
+
+.El
+.Sh EXAMPLE
+An example config file is shown below. Copy this to /etc/unbound/unbound.conf
+and start the server with:
+.nf
+	$ unbound -c /etc/unbound/unbound.conf 
+.fi
+Most settings are the defaults. Stop the server with:
+.nf
+	$ kill `cat /etc/unbound/unbound.pid`
+.fi
+Below is a minimal config file. The source distribution contains an extensive
+example.conf file with all the options.
+
+.nf
+# unbound.conf(5) config file for unbound(8).
+server:
+	directory: "/etc/unbound"
+	username: unbound 	# make sure it can write to pidfile, logfile.
+	chroot: "/etc/unbound"
+	logfile: "/etc/unbound/unbound.log"
+	pidfile: "/etc/unbound/unbound.pid"
+	# verbosity: 1		# uncomment and increase to get more logging.
+.fi
+
+.El
+.Sh FILE FORMAT
+There must be whitespace between keywords. Attribute keywords end with a colon ':'. An attribute
+is followed by its containing attributes, or a value.
+
+.Pp
+Files can be included using the
+.Ic include:
+directive. It can appear anywhere, and takes a single filename as an argument.
+Processing continues as if the text from the included file was copied into
+the config file at that point.
+
+.Ss Server Options
+There may only be one 
+.Ic server:
+clause.
+.Bl -tag -width indent
+.It \fBverbosity:\fR <number>
+The verbosity number, level 0 means no verbosity, only errors. Level 1 
+gives operational information. Level 2 gives query level information, 
+output per query. Level 3 gives algorithm level information.  
+Default is level 1. The verbosity can also be increased from the commandline,
+see
+.Xr unbound 8 .
+.It \fBnum-threads:\fR <number>
+The number of threads to create to serve clients. Use 1 for no threading.
+.It \fBport:\fR <port number>
+The port number, default 53, on which the server responds to queries.
+.It \fBinterface:\fR <ip address>
+Interface to use to connect to the network. Can be given multiple times to
+work on several interfaces. If none are given the default (all) is used.
+.It \fBoutgoing-port:\fR <port number>
+The starting port number where the outgoing query port range is allocated.
+Default is 1053.
+.It \fBoutgoing-range:\fR <number>
+Number of ports to open. This number is opened per thread for every outgoing
+query interface. Must be at least 1. Default is 16.
+Larger numbers give more protection against spoofing attempts, but need
+extra resources from the operating system.
+.It \fBoutgoing-num-tcp:\fR <number>
+Number of outgoing TCP buffers to allocate per thread. Default is 10. If set
+to 0, or if do_tcp is "no", no TCP queries to authoritative servers are done.
+.It \fBmsg-cache-size:\fR <number>
+Number of bytes size of the message cache. Default is 4 megabytes.
+.It \fBmsg-cache-slabs:\fR <number>
+Number of slabs in the message cache. Slabs reduce lock contention by threads.
+Must be set to a power of 2. Setting (close) to the number of cpus is a 
+reasonable guess.
+.It \fBnum-queries-per-thread:\fR <number>
+The number of queries that every thread will service simultaneously.
+.It \fBrrset-cache-size:\fR <number>
+Number of bytes size of the RRset cache. Default is 4 megabytes.
+.It \fBrrset-cache-slabs:\fR <number>
+Number of slabs in the RRset cache. Slabs reduce lock contention by threads.
+Must be set to a power of 2. 
+.It \fBinfra-host-ttl:\fR <seconds>
+Time to live for entries in the host cache. The host cache contains 
+roundtrip timing and EDNS support information. Default is 900.
+.It \fBinfra-lame-ttl:\fR <seconds>
+The time to live when a delegation is discovered to be lame. Default is 900.
+.It \fBinfra-cache-slabs:\fR <number>
+Number of slabs in the infrastructure cache. Slabs reduce lock contention 
+by threads. Must be set to a power of 2. 
+.It \fBinfra-cache-numhosts:\fR <number>
+Number of hosts for which information is cached. Default is 1000.
+.It \fBinfra-cache-numlame:\fR <number>
+Number of zones per host for which lameness is cached. Default is 1000.
+.It \fBdo-ip4:\fR <yes or no>
+Enable or disable whether ip4 queries are answered. Default is yes.
+.It \fBdo-ip6:\fR <yes or no>
+Enable or disable whether ip6 queries are answered. Default is yes.
+.It \fBdo-udp:\fR <yes or no>
+Enable or disable whether UDP queries are answered. Default is yes.
+.It \fBdo-tcp:\fR <yes or no>
+Enable or disable whether TCP queries are answered. Default is yes.
+.It \fBchroot:\fR <directory>
+If given a chroot is done to the given directory. The default is none ("").
+.It \fBusername:\fR <name>
+If given, after binding the port the user privileges are dropped. Default is
+not to change user, username: "". 
+
+If this user is not capable of binding the
+port, reloads (by signal HUP) will still retain the opened ports.
+If you change the port number in the config file, and that new port number 
+requires privileges, then a reload will fail; a restart is needed.
+.It \fBdirectory:\fR <directory>
+Sets the working directory for the program.
+.It \fBlogfile:\fR <filename>
+If "" is given, logging goes to stderr, or nowhere once daemonized.
+The logfile is appended to, in the following format: 
+[seconds since 1970] unbound[pid:tid]: type: message. 
+.It \fBpidfile:\fR <filename>
+The process id is written to the file. Default is "unbound.pid". So,
+kill -HUP `cat /etc/unbound/unbound.pid` will trigger a reload,
+kill -QUIT `cat /etc/unbound/unbound.pid` will gracefully terminate.
+.It \fBhide-identity:\fR <yes or no>
+If enabled id.server and hostname.bind queries are refused.
+.It \fBidentity:\fR <string>
+Set the identity to report. If set to "", the default, then the hostname
+of the server is returned.
+.It \fBhide-version:\fR <yes or no>
+If enabled version.server and version.bind queries are refused.
+.It \fBversion:\fR <string>
+Set the version to report. If set to "", the default, then the package
+version is returned.
+.It \fBtarget-fetch-policy:\fR <"list of numbers">
+Set the target fetch policy used by unbound to determine if it should fetch
+nameserver target addresses opportunistically. The policy is described per
+dependency depth. 
+
+The number of values determines the maximum dependency depth
+that unbound will pursue in answering a query.  
+A value of -1 means to fetch all targets opportunistically for that dependency
+depth. A value of 0 means to fetch on demand only. A positive value fetches
+that many targets opportunistically. 
+
+Enclose the list between quotes ("") and put spaces between numbers.
+The default is "3 2 1 0 0". Setting all zeroes, "0 0 0 0 0" gives behaviour
+closer to that of BIND 9, while setting "-1 -1 -1 -1 -1" gives behaviour 
+rumoured to be closer to that of BIND 8.
+.It \fBharden-short-bufsize:\fR <yes or no>
+Very small EDNS buffer sizes from queries are ignored. Default is off, since
+it is legal protocol wise to send these, and unbound tries to give very 
+small answers to these queries, where possible.
+.It \fBharden-large-queries:\fR <yes or no>
+Very large queries are ignored. Default is off, since it is legal protocol
+wise to send these, and could be necessary for operation if TSIG or EDNS
+payload is very large.
+.It \fBharden-glue:\fR <yes or no>
+Will trust glue only if it is within the servers authority. Default is on.
+.It \fBdo-not-query-address:\fR <IP address>
+Do not query the given IP address. Can be IP4 or IP6. By default the
+DNS port is blocked for that address. Appending the character '@' and then
+the portnumber will block other port numbers. 
+.El
+
+.Ss Stub Zone Options
+There may be multiple
+.Ic stub-zone:
+clauses. Each with a name: and zero or more hostnames or IP addresses.
+For the stub zone this list of nameservers is used. Class IN is assumed.
+.Bl -tag -width indent
+.It \fBname:\fR <domain name>
+Name of the stub zone.
+.It \fBstub-host:\fR <domain name>
+Name of stub zone nameserver. Is itself resolved before it is used.
+.It \fBstub-addr:\fR <IP address>
+IP address of stub zone nameserver. Can be IP 4 or IP 6.
+To use a nondefault port for DNS communication append '@' with the port number.
+.El
+
+.Ss Forward Zone Options
+There may be multiple
+.Ic forward-zone:
+clauses. Each with a name: and zero or more hostnames or IP addresses.
+For the forward zone this list of nameservers is used to forward the queries
+to. The servers have to handle further recursion for the query. Class IN is 
+assumed. A forward-zone entry with name "." and a forward-addr target will 
+forward all queries to that other server (unless it can answer from the cache).
+.Bl -tag -width indent
+.It \fBname:\fR <domain name>
+Name of the forward zone.
+.It \fBforward-host:\fR <domain name>
+Name of server to forward to. Is itself resolved before it is used.
+.It \fBforward-addr:\fR <IP address>
+IP address of server to forward to. Can be IP 4 or IP 6.
+To use a nondefault port for DNS communication append '@' with the port number.
+.El
+
+.Sh FILES
+.Bl -tag -width indent
+.It Pa /etc/unbound
+default unbound working directory
+.It Pa unbound.conf
+unbound configuration file.
+.It Pa unbound.pid
+default unbound pidfile with process ID of the running daemon.
+.It Pa unbound.log
+unbound log file.
+.El
+.Sh SEE ALSO
+.Xr unbound 8
+.Sh AUTHORS
+.Ic Unbound 
+was written by NLnet Labs. Please see CREDITS file
+in the distribution for further details.
