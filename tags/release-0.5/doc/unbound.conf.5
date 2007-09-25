@@ -1,0 +1,327 @@
+.\"
+.\" unbound.conf.5 -- unbound.conf manual
+.\"
+.\" Copyright (c) 2007, NLnet Labs. All rights reserved.
+.\"
+.\" See LICENSE for the license.
+.\"
+.\"
+.Dd @date@
+.Os FreeBSD
+.Dt unbound.conf 5
+.Sh NAME
+.Nm unbound.conf
+.Nd Unbound configuration file.
+.Sh SYNOPSIS
+.Nm unbound.conf
+.Sh DESCRIPTION
+.Ic unbound.conf
+is used to configure
+.Xr unbound 8 .
+The file format has attributes and values. Some attributes have attributes inside them.
+The notation is: attribute: value.
+.Pp
+Comments start with # and last to the end of line. Empty lines are
+ignored as is whitespace at the beginning of a line.
+.Sh EXAMPLE
+An example config file is shown below. Copy this to /etc/unbound/unbound.conf
+and start the server with:
+.nf
+	$ unbound -c /etc/unbound/unbound.conf 
+.fi
+Most settings are the defaults. Stop the server with:
+.nf
+	$ kill `cat /etc/unbound/unbound.pid`
+.fi
+Below is a minimal config file. The source distribution contains an extensive
+example.conf file with all the options.
+.nf
+# unbound.conf(5) config file for unbound(8).
+server:
+	directory: "/etc/unbound"
+	username: unbound 	# make sure it can write to pidfile, logfile.
+	chroot: "/etc/unbound"
+	logfile: "/etc/unbound/unbound.log"
+	pidfile: "/etc/unbound/unbound.pid"
+	# verbosity: 1		# uncomment and increase to get more logging.
+.fi
+.Sh FILE FORMAT
+There must be whitespace between keywords. Attribute keywords end with a colon ':'. An attribute
+is followed by its containing attributes, or a value.
+.Pp
+Files can be included using the
+.Ic include:
+directive. It can appear anywhere, and takes a single filename as an argument.
+Processing continues as if the text from the included file was copied into
+the config file at that point.
+.Ss Server Options
+There may only be one 
+.Ic server:
+clause.
+.Bl -tag -width indent
+.It \fBverbosity:\fR <number>
+The verbosity number, level 0 means no verbosity, only errors. Level 1 
+gives operational information. Level 2 gives query level information, 
+output per query. Level 3 gives algorithm level information.  
+Default is level 1. The verbosity can also be increased from the commandline,
+see
+.Xr unbound 8 .
+.It \fBnum-threads:\fR <number>
+The number of threads to create to serve clients. Use 1 for no threading.
+.It \fBport:\fR <port number>
+The port number, default 53, on which the server responds to queries.
+.It \fBinterface:\fR <ip address>
+Interface to use to connect to the network. Can be given multiple times to
+work on several interfaces. If none are given the default (all) is used.
+.It \fBoutgoing-port:\fR <port number>
+The starting port number where the outgoing query port range is allocated.
+Default is 1053.
+.It \fBoutgoing-range:\fR <number>
+Number of ports to open. This number is opened per thread for every outgoing
+query interface. Must be at least 1. Default is 16.
+Larger numbers give more protection against spoofing attempts, but need
+extra resources from the operating system.
+.It \fBoutgoing-num-tcp:\fR <number>
+Number of outgoing TCP buffers to allocate per thread. Default is 10. If set
+to 0, or if do_tcp is "no", no TCP queries to authoritative servers are done.
+.It \fBincoming-num-tcp:\fR <number>
+Number of incoming TCP buffers to allocate per thread. Default is 10. If set
+to 0, or if do_tcp is "no", no TCP queries from clients are accepted.
+.It \fBmsg-buffer-size:\fR <number>
+Number of bytes size of the message buffers. Default is 65552 bytes, enough
+for 64 Kb packets, the maximum DNS message size. No message larger than this
+can be sent or received. Can be reduced to use less memory, but some requests
+for DNS data, such as for huge resource records, will result in a SERVFAIL 
+reply to the client.
+.It \fBmsg-cache-size:\fR <number>
+Number of bytes size of the message cache. Default is 4 megabytes.
+.It \fBmsg-cache-slabs:\fR <number>
+Number of slabs in the message cache. Slabs reduce lock contention by threads.
+Must be set to a power of 2. Setting (close) to the number of cpus is a 
+reasonable guess.
+.It \fBnum-queries-per-thread:\fR <number>
+The number of queries that every thread will service simultaneously.
+.It \fBrrset-cache-size:\fR <number>
+Number of bytes size of the RRset cache. Default is 4 megabytes.
+.It \fBrrset-cache-slabs:\fR <number>
+Number of slabs in the RRset cache. Slabs reduce lock contention by threads.
+Must be set to a power of 2. 
+.It \fBinfra-host-ttl:\fR <seconds>
+Time to live for entries in the host cache. The host cache contains 
+roundtrip timing and EDNS support information. Default is 900.
+.It \fBinfra-lame-ttl:\fR <seconds>
+The time to live when a delegation is discovered to be lame. Default is 900.
+.It \fBinfra-cache-slabs:\fR <number>
+Number of slabs in the infrastructure cache. Slabs reduce lock contention 
+by threads. Must be set to a power of 2. 
+.It \fBinfra-cache-numhosts:\fR <number>
+Number of hosts for which information is cached. Default is 10000.
+.It \fBinfra-cache-lame-size:\fR <number>
+Number of bytes that the lameness cache per host is allowed to use. Default
+is 10 kb, which gives maximum storage for a couple score zones, depending on 
+the lame zone name lengths.
+.It \fBdo-ip4:\fR <yes or no>
+Enable or disable whether ip4 queries are answered. Default is yes.
+.It \fBdo-ip6:\fR <yes or no>
+Enable or disable whether ip6 queries are answered. Default is yes.
+.It \fBdo-udp:\fR <yes or no>
+Enable or disable whether UDP queries are answered. Default is yes.
+.It \fBdo-tcp:\fR <yes or no>
+Enable or disable whether TCP queries are answered. Default is yes.
+.It \fBchroot:\fR <directory>
+If given a chroot is done to the given directory. The default is none ("").
+.It \fBusername:\fR <name>
+If given, after binding the port the user privileges are dropped. Default is
+not to change user, username: "". 
+.Pp
+If this user is not capable of binding the
+port, reloads (by signal HUP) will still retain the opened ports.
+If you change the port number in the config file, and that new port number 
+requires privileges, then a reload will fail; a restart is needed.
+.It \fBdirectory:\fR <directory>
+Sets the working directory for the program.
+.It \fBlogfile:\fR <filename>
+If "" is given, logging goes to stderr, or nowhere once daemonized.
+The logfile is appended to, in the following format: 
+[seconds since 1970] unbound[pid:tid]: type: message. 
+.It \fBpidfile:\fR <filename>
+The process id is written to the file. Default is "unbound.pid". So,
+kill -HUP `cat /etc/unbound/unbound.pid` will trigger a reload,
+kill -QUIT `cat /etc/unbound/unbound.pid` will gracefully terminate.
+.It \fBhide-identity:\fR <yes or no>
+If enabled id.server and hostname.bind queries are refused.
+.It \fBidentity:\fR <string>
+Set the identity to report. If set to "", the default, then the hostname
+of the server is returned.
+.It \fBhide-version:\fR <yes or no>
+If enabled version.server and version.bind queries are refused.
+.It \fBversion:\fR <string>
+Set the version to report. If set to "", the default, then the package
+version is returned.
+.It \fBtarget-fetch-policy:\fR <"list of numbers">
+Set the target fetch policy used by unbound to determine if it should fetch
+nameserver target addresses opportunistically. The policy is described per
+dependency depth. 
+.Pp
+The number of values determines the maximum dependency depth
+that unbound will pursue in answering a query.  
+A value of -1 means to fetch all targets opportunistically for that dependency
+depth. A value of 0 means to fetch on demand only. A positive value fetches
+that many targets opportunistically. 
+.Pp
+Enclose the list between quotes ("") and put spaces between numbers.
+The default is "3 2 1 0 0". Setting all zeroes, "0 0 0 0 0" gives behaviour
+closer to that of BIND 9, while setting "-1 -1 -1 -1 -1" gives behaviour 
+rumoured to be closer to that of BIND 8.
+.It \fBharden-short-bufsize:\fR <yes or no>
+Very small EDNS buffer sizes from queries are ignored. Default is off, since
+it is legal protocol wise to send these, and unbound tries to give very 
+small answers to these queries, where possible.
+.It \fBharden-large-queries:\fR <yes or no>
+Very large queries are ignored. Default is off, since it is legal protocol
+wise to send these, and could be necessary for operation if TSIG or EDNS
+payload is very large.
+.It \fBharden-glue:\fR <yes or no>
+Will trust glue only if it is within the servers authority. Default is on.
+.It \fBdo-not-query-address:\fR <IP address>
+Do not query the given IP address. Can be IP4 or IP6. By default the
+DNS port is blocked for that address. Appending the character '@' and then
+the portnumber will block other port numbers. 
+.It \fBmodule-config:\fR <"module names">
+Module configuration, a list of module names separated by spaces, surround
+the string with quotes (""). The modules can be validator, iterator.
+Setting this to "iterator" will result in a non-validating server.
+Setting this to "validator iterator" will turn on DNSSEC validation.
+You must also set trust-anchors for validation to be useful.
+.It \fBtrust-anchor-file:\fR <filename>
+File with trusted keys for validation. Both DS and DNSKEY entries can appear
+in the file. The format of the file is the standard DNS Zone file format.
+Default is "", or no trust anchor file.
+.It \fBtrust-anchor:\fR <"Resource Record">
+A DS or DNSKEY RR for a key to use for validation. Multiple entries can be
+given to specify multiple trusted keys, in addition to the trust-anchor-files.
+The resource record is entered in the same format as 'dig' or 'drill' prints
+them, the same format as in the zone file. Has to be on a single line, with
+"" around it. A TTL can be specified for ease of cut and paste, but is ignored. 
+A class can be specified, but class IN is default.
+.It \fBtrusted-keys-file:\fR <filename>
+File with trusted keys for validation. Specify more than one file
+with several entries, one file per entry. Like \fBtrust-anchor-file\fR
+but has a different file format. Format is BIND-9 style format, 
+the trusted-keys { name flag proto algo "key"; }; clauses are read.
+.It \fBval-override-date:\fR <rrsig-style date spec>
+Default is "" or "0", which disables this debugging feature. If enabled by
+giving a RRSIG style date, that date is used for verifying RRSIG inception
+and expiration dates, instead of the current date. Do not set this unless 
+you are debugging signature inception and expiration.
+.It \fBval-bogus-ttl:\fR <number>
+The time to live for bogus data. This is data that has failed validation;
+due to invalid signatures or other checks. The TTL from that data cannot be
+trusted, and this value is used instead. The value is in seconds, default 900.
+The time interval prevents repeated revalidation of bogus data.
+.It \fBval-clean-additional:\fR <yes or no>
+Instruct the validator to remove data from the additional section of secure
+messages that are not signed properly. Messages that are insecure, bogus,
+indeterminate or unchecked are not affected. Default is yes. Use this setting
+to protect the users that rely on this validator for authentication from 
+protentially bad data in the additional section.
+.It \fBval-permissive-mode:\fR <yes or no>
+Instruct the validator to mark bogus messages as indeterminate. The security
+checks are performed, but if the result is bogus (failed security), the
+reply is not withheld from the client with SERVFAIL as usual. The client 
+receives the bogus data. For messages that are found to be secure the AD bit 
+is set in replies. Also logging is performed as for full validation.
+The default value is "no". 
+.It \fBval-nsec3-keysize-iterations:\fR <"list of values">
+List of keysize and iteration count values, separated by spaces, surrounded
+by quotes. Default is "1024 150 2048 500 4096 2500". This determines the
+maximum allowed NSEC3 iteration count before a message is simply marked
+insecure instead of performing the many hashing iterations. The list must
+be in ascending order and have at least one entry. If you set it to 
+"1024 65535" there is no restriction to NSEC3 iteration values.
+This table must be kept short; a very long list could cause slower operation.
+.It \fBkey-cache-size:\fR <number>
+Number of bytes size of the key cache. Default is 4 megabytes.
+.It \fBkey-cache-slabs:\fR <number>
+Number of slabs in the key cache. Slabs reduce lock contention by threads.
+Must be set to a power of 2. Setting (close) to the number of cpus is a 
+reasonable guess.
+.El
+.Ss Stub Zone Options
+There may be multiple
+.Ic stub-zone:
+clauses. Each with a name: and zero or more hostnames or IP addresses.
+For the stub zone this list of nameservers is used. Class IN is assumed.
+.Bl -tag -width indent
+.It \fBname:\fR <domain name>
+Name of the stub zone.
+.It \fBstub-host:\fR <domain name>
+Name of stub zone nameserver. Is itself resolved before it is used.
+.It \fBstub-addr:\fR <IP address>
+IP address of stub zone nameserver. Can be IP 4 or IP 6.
+To use a nondefault port for DNS communication append '@' with the port number.
+.El
+.Ss Forward Zone Options
+There may be multiple
+.Ic forward-zone:
+clauses. Each with a name: and zero or more hostnames or IP addresses.
+For the forward zone this list of nameservers is used to forward the queries
+to. The servers have to handle further recursion for the query. Class IN is 
+assumed. A forward-zone entry with name "." and a forward-addr target will 
+forward all queries to that other server (unless it can answer from the cache).
+.Bl -tag -width indent
+.It \fBname:\fR <domain name>
+Name of the forward zone.
+.It \fBforward-host:\fR <domain name>
+Name of server to forward to. Is itself resolved before it is used.
+.It \fBforward-addr:\fR <IP address>
+IP address of server to forward to. Can be IP 4 or IP 6.
+To use a nondefault port for DNS communication append '@' with the port number.
+.El
+.Sh MEMORY CONTROL EXAMPLE
+In the example config settings below memory usage is reduced. Some service
+levels are lower, notable very large data and a high TCP load are no longer
+supported. Very large data and high TCP loads are exceptional for the DNS.
+DNSSEC validation is enabled, just add trust anchors.
+If you do not have to worry about programs using more than 1 meg of memory,
+the below example is not for you. Use the defaults to receive full service.
+.Pp
+.nf
+# example settings that reduce memory usage
+server:
+	num-threads: 1
+	outgoing-num-tcp: 1	# this limits TCP service, uses less buffers.
+	incoming-num-tcp: 1
+	outgoing-range: 1	# uses less memory, but less port randomness.
+	msg-buffer-size: 8192   # note this limits service, 'no huge stuff'.
+	msg-cache-size: 102400  # 100 Kb.
+	msg-cache-slabs: 1
+	rrset-cache-size: 102400  # 100 Kb.
+	rrset-cache-slabs: 1
+	infra-cache-numhosts: 200
+	infra-cache-numlame: 10
+	key-cache-size: 102400  # 100 Kb.
+	key-cache-slabs: 1
+	num-queries-per-thread: 30
+	target-fetch-policy: "2 1 0 0 0 0"
+	harden-large-queries: "yes"
+	harden-short-bufsize: "yes"
+	do-ip6: no	# save a bit of memory if not used.
+.fi
+.Sh FILES
+.Bl -tag -width indent
+.It Pa /etc/unbound
+default unbound working directory
+.It Pa unbound.conf
+unbound configuration file.
+.It Pa unbound.pid
+default unbound pidfile with process ID of the running daemon.
+.It Pa unbound.log
+unbound log file.
+.El
+.Sh SEE ALSO
+.Xr unbound 8
+.Sh AUTHORS
+.Ic Unbound 
+was written by NLnet Labs. Please see CREDITS file
+in the distribution for further details.

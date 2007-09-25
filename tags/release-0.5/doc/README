@@ -1,0 +1,59 @@
+README for Unbound @version@
+Copyright 2007 NLnet Labs
+http://unbound.net
+
+This software is under BSD license, see LICENSE for details.
+
+* Download the latest version of this software from 
+  	http://unbound.net 
+  or get a beta version from the svn repository at 
+  	http://unbound.net/svn/
+
+* Needs the following libraries
+  * ldns	http://www.nlnetlabs.nl/ldns/			(BSD license)
+  * libevent	http://www.monkey.org/~provos/libevent/		(BSD license)
+
+* Create build environment 
+  * run libtoolize -c if config.sub is missing, or run glibtoolize.
+  * autoreconf (autoheader && autoconf), if ./configure is missing.
+
+* Make and install: ./configure; make; make install
+  * --with-ldns=/path/to/ldns
+  * --with-libevent=/path/to/libevent
+  	Can be set to either the system install or the build directory.
+	--with-libevent=no gives a builtin alternative implementation.
+  * --without-pthreads 
+	This disables pthreads, and uses Solaris thr library or no threading. 
+	Without this option the pthreads library is detected automatically.
+  * --enable-static-exe
+	This enables a debug option to statically link, against ldns and 
+	libevent libraries.
+  * --enable-lock-checks
+  	This enables a debug option to check lock and unlock calls. It needs
+	a recent pthreads library to work.
+  * --enable-alloc-checks
+	This enables a debug option to check malloc (calloc, realloc, free).
+	The server periodically checks if the amount of memory used fits with
+	the amount of memory it thinks it should be using, and reports 
+	memory usage in detail.
+
+* 'make test' attempts to run a series of tests, depending on the support
+  programs that are installed.
+
+Known issues
+------------
+o If libevent is older (before 1.3c), unbound will exit instead of reload
+  on sighup. On a restart 'did not exit gracefully last time' warning is 
+  printed. Perform ./configure --with-libevent=no or update libevent, rerun 
+  configure and recompile unbound to make sighup work correctly.
+
+Acknowledgements
+----------------
+o Thanks to David Blacka and Matt Larson (Verisign) for the unbound-java
+  prototype. Design and code from that prototype has been used to create
+  this program. Such as the iterator state machine and the cache design.
+o Other code origins are from the NSD (NLnet Labs) and LDNS (NLnet Labs)
+  projects. Such as buffer, region-allocator and red-black tree code.
+o See Credits file for contributors.
+
+* mailto:wouter@nlnetlabs.nl
