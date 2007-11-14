@@ -1,0 +1,55 @@
+TODO items.
+o use real entropy to make random (ID, port) numbers more random.
+o in production mode, do not free memory on exit. In debug mode, test leaks.
+o profile memory allocation, and if performance issues, use special memory
+  allocator. For example, with caches per thread.
+o #define BIT_... different on bigendian and smallendian systems so that
+  the htons on flags is not needed to send a message from the cache.
+o speed up pkt domain name decompression loop detection using counter perhaps.
+o detect OS/400 pthreads implementation that allows upgrading to writelock
+  on pthreads rwlocks and use it to examine-rd before storing-wr rrset cache.
+o understand synthesized DNAMEs, so those TTL=0 packets are cached properly.
+o understand NSEC/NSEC3, aggressive negative caching, so that updates to
+  NSEC/NSEC3 will result in proper negative responses.
+o fallback without EDNS if result is NOTIMPL, now only on FORMERR like in java.
+o scrubber has slow pkt_subdomain and pkt_strict_subdomain functions.
+o get serverselection algorithm out of local optimum.
+  make subtargets to get rtt info for a couple of targets, like fetch-policy.
+  or send out multiple queries to multiple servers.
+o donotqueryaddresses allow specification of subnets, use trie to store.
+  extend default list to contain illegal ip4 and ip6 addresses.
+o memory profile; and if needed put serviced queries under qstate->region
+  and special purpose region code, reuse blocks, shrink if too big.
+o check query, option to enforce presence of qdsection in noerror answers.
+o configuration option where port 53 is used for send and receive, no other
+  ports are used.
+o (option) to not send replies to clients after a timeout of (say 5 secs) has
+  passed, but keep task active for later retries by client.
+o private TTL feature
+o pretend-dnssec-unaware, and pretend-edns-unaware modes for debug/workshops.
+o delegpt use rbtree for ns-list, to avoid slowdown for very large NS sets.
+o be able to have different listen and query-to addresses to bind to,
+  so you can listen to localhost and query-to to the internet.
+o reprime and refresh oft used data before timeout.
+o retain prime results in a overlaid roothints file.
+o store primed key data in a overlaid keyhints file (sort of like drafttimers).
+o windows version, auto update feature, a query to check for the version.
+o autoreport of problems
+o logrotation, syslog
+o command the server with TSIG inband. get-config, clearcache, 
+	get stats, get memstats, get ..., reload, clear one zone from cache
+o watch for spoof nearmisses.
+o improve compression of DNS packets by first puttig uncompressible rrs, then
+  compress to their rdata.
+o if one server is not responsive do not spend 75 secs on that server, but
+  try other servers with lower rtt.
+o NSID rfc 5001 support.
+o timers rfc 5011 support.
+o Treat YXDOMAIN from a DNAME properly, in iterator (not throwaway), validator.
+o grab ports nonconsequtive and change the set after a while (change within
+  a given range). Could be bad for OS if wrong port. unsure if it helps secure.
+o make timeout backoffs randomized (a couple percent random) to spread traffic.
+o inspect date on executable, then warn user in log if its more than 1 year.
+o proactively prime root, stubs and trust anchors, feature.
+  early failure, faster on first query, but more traffic.
+o use privilege separation, to change privilege options during reload securely
