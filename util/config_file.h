@@ -43,7 +43,6 @@
 #define UTIL_CONFIG_FILE_H
 struct config_stub;
 struct config_strlist;
-struct config_acl;
 
 /**
  * The configuration options.
@@ -121,8 +120,6 @@ struct config_file {
 	struct config_stub* forwards;
 	/** list of donotquery addresses, linked list */
 	struct config_strlist* donotqueryaddrs;
-	/** list of access control entries, linked list */
-	struct config_acl* acls;
 	/** use default localhost donotqueryaddr entries */
 	int donotquery_localhost;
 
@@ -212,18 +209,6 @@ struct config_strlist {
 	struct config_strlist* next;
 	/** config option string */
 	char* str;
-};
-
-/**
- * List of access control options
- */
-struct config_acl {
-	/** next item in list */
-	struct config_acl* next;
-	/** ip addr string */
-	char* address;
-	/** control string */
-	char* control;
 };
 
 /**
