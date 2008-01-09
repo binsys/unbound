@@ -45,7 +45,6 @@
 #include "util/configyyrename.h"
 #include "util/config_file.h"
 #include "util/configparser.h"
-#include "util/net_help.h"
 /** global config during parsing */
 struct config_parser_state* cfg_parser = 0;
 /** lex in file */
@@ -90,7 +89,7 @@ config_create()
 	cfg->host_ttl = 900;
 	cfg->lame_ttl = 900;
 	cfg->bogus_ttl = 900;
-	cfg->max_ttl = 3600 * 24;
+	cfg->max_ttl = 3600 * 24 * 10;
 	cfg->infra_cache_slabs = 4;
 	cfg->infra_cache_numhosts = 10000;
 	cfg->infra_cache_lame_size = 10240; /* easily 40 or more entries */
@@ -111,7 +110,6 @@ config_create()
 	cfg->out_ifs = NULL;
 	cfg->stubs = NULL;
 	cfg->forwards = NULL;
-	cfg->acls = NULL;
 	cfg->harden_short_bufsize = 0;
 	cfg->harden_large_queries = 0;
 	cfg->harden_glue = 1;
@@ -128,9 +126,6 @@ config_create()
 	cfg->val_permissive_mode = 0;
 	cfg->key_cache_size = 4 * 1024 * 1024;
 	cfg->key_cache_slabs = 4;
-	cfg->local_zones = NULL;
-	cfg->local_zones_nodefault = NULL;
-	cfg->local_data = NULL;
 	if(!(cfg->module_conf = strdup("validator iterator"))) goto error_exit;
 	if(!(cfg->val_nsec3_key_iterations = 
 		strdup("1024 150 2048 500 4096 2500"))) goto error_exit;
@@ -138,24 +133,6 @@ config_create()
 error_exit:
 	config_delete(cfg); 
 	return NULL;
-}
-
-struct config_file* config_create_forlib()
-{
-	struct config_file* cfg = config_create();
-	if(!cfg) return NULL;
-	/* modifications for library use, less verbose, less memory */
-	cfg->verbosity = 0;
-	cfg->outgoing_num_tcp = 2;
-	cfg->msg_cache_size = 1024*1024;
-	cfg->msg_cache_slabs = 1;
-	cfg->rrset_cache_size = 1024*1024;
-	cfg->rrset_cache_slabs = 1;
-	cfg->infra_cache_slabs = 1;
-	cfg->use_syslog = 0;
-	cfg->key_cache_size = 1024*1024;
-	cfg->key_cache_slabs = 1;
-	return cfg;
 }
 
 /** initialize the global cfg_parser object */
@@ -194,26 +171,14 @@ config_read(struct config_file* cfg, char* filename)
 	return 1;
 }
 
-void
+/** delete config strlist */
+static void
 config_delstrlist(struct config_strlist* p)
 {
 	struct config_strlist *np;
 	while(p) {
 		np = p->next;
 		free(p->str);
-		free(p);
-		p = np;
-	}
-}
-
-void
-config_deldblstrlist(struct config_str2list* p)
-{
-	struct config_str2list *np;
-	while(p) {
-		np = p->next;
-		free(p->str);
-		free(p->str2);
 		free(p);
 		p = np;
 	}
@@ -266,11 +231,7 @@ config_delete(struct config_file* cfg)
 	config_delstrlist(cfg->trust_anchor_file_list);
 	config_delstrlist(cfg->trusted_keys_file_list);
 	config_delstrlist(cfg->trust_anchor_list);
-	config_deldblstrlist(cfg->acls);
 	free(cfg->val_nsec3_key_iterations);
-	config_deldblstrlist(cfg->local_zones);
-	config_delstrlist(cfg->local_zones_nodefault);
-	config_delstrlist(cfg->local_data);
 	free(cfg);
 }
 
@@ -320,30 +281,12 @@ cfg_strlist_insert(struct config_strlist** head, char* item)
 	return 1;
 }
 
-int 
-cfg_str2list_insert(struct config_str2list** head, char* item, char* i2)
-{
-	struct config_str2list *s;
-	if(!item || !i2 || !head)
-		return 0;
-	s = (struct config_str2list*)calloc(1, sizeof(struct config_str2list));
-	if(!s)
-		return 0;
-	s->str = item;
-	s->str2 = i2;
-	s->next = *head;
-	*head = s;
-	return 1;
-}
-
 uint32_t 
 cfg_convert_timeval(const char* str)
 {
 	uint32_t t;
 	struct tm tm;
 	memset(&tm, 0, sizeof(tm));
-	if(strlen(str) < 14)
-		return 0;
 	if(sscanf(str, "%4d%2d%2d%2d%2d%2d", &tm.tm_year, &tm.tm_mon, 
 		&tm.tm_mday, &tm.tm_hour, &tm.tm_min, &tm.tm_sec) != 6)
 		return 0;
@@ -394,4 +337,3 @@ config_apply(struct config_file* config)
 {
 	MAX_TTL = (uint32_t)config->max_ttl;
 }
-

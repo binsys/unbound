@@ -87,14 +87,13 @@ static void config_end_include(void)
 
 SPACE   [ \t]
 LETTER  [a-zA-Z]
-UNQUOTEDLETTER [^\'\"\n\r \t\\]|\\.
+UNQUOTEDLETTER [^\"\n\r \t\\]|\\.
 NEWLINE [\r\n]
 COMMENT \#
 COLON 	\:
-DQANY     [^\"\n\r\\]|\\.
-SQANY     [^\'\n\r\\]|\\.
+ANY     [^\"\n\r\\]|\\.
 
-%x	quotedstring singlequotedstr include include_quoted
+%x	quotedstring include include_quoted
 
 %%
 {SPACE}* 		{ LEXOUT(("SP ")); /* ignore */ }
@@ -145,7 +144,6 @@ forward-addr{COLON}	{ YDOUT; return VAR_FORWARD_ADDR;}
 forward-host{COLON}	{ YDOUT; return VAR_FORWARD_HOST;}
 do-not-query-address{COLON}	{ YDOUT; return VAR_DO_NOT_QUERY_ADDRESS;}
 do-not-query-localhost{COLON}	{ YDOUT; return VAR_DO_NOT_QUERY_LOCALHOST;}
-access-control{COLON}	{ YDOUT; return VAR_ACCESS_CONTROL;}
 hide-identity{COLON}	{ YDOUT; return VAR_HIDE_IDENTITY;}
 hide-version{COLON}     { YDOUT; return VAR_HIDE_VERSION;}
 identity{COLON}		{ YDOUT; return VAR_IDENTITY;}
@@ -162,8 +160,6 @@ key-cache-size{COLON}	{ YDOUT; return VAR_KEY_CACHE_SIZE;}
 key-cache-slabs{COLON}	{ YDOUT; return VAR_KEY_CACHE_SLABS;}
 val-nsec3-keysize-iterations{COLON}	{ YDOUT; return VAR_VAL_NSEC3_KEYSIZE_ITERATIONS;}
 use-syslog{COLON}	{ YDOUT; return VAR_USE_SYSLOG;}
-local-zone{COLON}	{ YDOUT; return VAR_LOCAL_ZONE;}
-local-data{COLON}	{ YDOUT; return VAR_LOCAL_DATA;}
 {NEWLINE}		{ LEXOUT(("NL\n")); cfg_parser->line++;}
 
 	/* Quoted strings. Strip leading and ending quotes */
@@ -172,28 +168,10 @@ local-data{COLON}	{ YDOUT; return VAR_LOCAL_DATA;}
         yyerror("EOF inside quoted string");
         BEGIN(INITIAL);
 }
-<quotedstring>{DQANY}*  { LEXOUT(("STR(%s) ", yytext)); yymore(); }
+<quotedstring>{ANY}*    { LEXOUT(("STR(%s) ", yytext)); yymore(); }
 <quotedstring>\n        { cfg_parser->line++; yymore(); }
 <quotedstring>\" {
         LEXOUT(("QE "));
-        BEGIN(INITIAL);
-        yytext[yyleng - 1] = '\0';
-	yylval.str = strdup(yytext);
-	if(!yylval.str)
-		yyerror("out of memory");
-        return STRING;
-}
-
-	/* Single Quoted strings. Strip leading and ending quotes */
-\'			{ BEGIN(singlequotedstr); LEXOUT(("SQS ")); }
-<singlequotedstr><<EOF>>   {
-        yyerror("EOF inside quoted string");
-        BEGIN(INITIAL);
-}
-<singlequotedstr>{SQANY}*  { LEXOUT(("STR(%s) ", yytext)); yymore(); }
-<singlequotedstr>\n        { cfg_parser->line++; yymore(); }
-<singlequotedstr>\' {
-        LEXOUT(("SQE "));
         BEGIN(INITIAL);
         yytext[yyleng - 1] = '\0';
 	yylval.str = strdup(yytext);
@@ -220,7 +198,7 @@ include{COLON}		{ LEXOUT(("v(%s) ", yytext)); BEGIN(include); }
         yyerror("EOF inside quoted string");
         BEGIN(INITIAL);
 }
-<include_quoted>{DQANY}*	{ LEXOUT(("ISTR(%s) ", yytext)); yymore(); }
+<include_quoted>{ANY}*	{ LEXOUT(("ISTR(%s) ", yytext)); yymore(); }
 <include_quoted>{NEWLINE}	{ cfg_parser->line++; yymore(); }
 <include_quoted>\"	{
 	LEXOUT(("IQE "));

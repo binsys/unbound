@@ -49,9 +49,7 @@
 #include "daemon/worker.h"
 #include "services/outside_network.h"
 #include "services/mesh.h"
-#include "services/localzone.h"
 #include "services/cache/infra.h"
-#include "services/cache/rrset.h"
 #include "iterator/iterator.h"
 #include "iterator/iter_donotq.h"
 #include "iterator/iter_fwd.h"
@@ -66,9 +64,6 @@
 #include "util/storage/slabhash.h"
 #include "util/locks.h"
 #include "testcode/checklocks.h"
-#include "daemon/acl_list.h"
-#include "libunbound/worker.h"
-#include "libunbound/context.h"
 
 int 
 fptr_whitelist_comm_point(comm_point_callback_t *fptr)
@@ -112,7 +107,6 @@ fptr_whitelist_pending_udp(comm_point_callback_t *fptr)
 {
 	if(fptr == &serviced_udp_callback) return 1;
 	else if(fptr == &worker_handle_reply) return 1;
-	else if(fptr == &libworker_handle_reply) return 1;
 	return 0;
 }
 
@@ -121,7 +115,6 @@ fptr_whitelist_pending_tcp(comm_point_callback_t *fptr)
 {
 	if(fptr == &serviced_tcp_callback) return 1;
 	else if(fptr == &worker_handle_reply) return 1;
-	else if(fptr == &libworker_handle_reply) return 1;
 	return 0;
 }
 
@@ -129,7 +122,6 @@ int
 fptr_whitelist_serviced_query(comm_point_callback_t *fptr)
 {
 	if(fptr == &worker_handle_service_reply) return 1;
-	else if(fptr == &libworker_handle_service_reply) return 1;
 	return 0;
 }
 
@@ -138,9 +130,6 @@ fptr_whitelist_rbtree_cmp(int (*fptr) (const void *, const void *))
 {
 	if(fptr == &mesh_state_compare) return 1;
 	else if(fptr == &mesh_state_ref_compare) return 1;
-	else if(fptr == &acl_list_cmp) return 1;
-	else if(fptr == &local_zone_cmp) return 1;
-	else if(fptr == &local_data_cmp) return 1;
 	else if(fptr == &donotq_cmp) return 1;
 	else if(fptr == &fwd_cmp) return 1;
 	else if(fptr == &stub_cmp) return 1;
@@ -152,7 +141,6 @@ fptr_whitelist_rbtree_cmp(int (*fptr) (const void *, const void *))
 	else if(fptr == &mini_ev_cmp) return 1;
 	else if(fptr == &anchor_cmp) return 1;
 	else if(fptr == &canonical_tree_compare) return 1;
-	else if(fptr == &context_query_cmp) return 1;
 	return 0;
 }
 
@@ -205,20 +193,11 @@ fptr_whitelist_hash_deldatafunc(lruhash_deldatafunc_t fptr)
 }
 
 int 
-fptr_whitelist_hash_markdelfunc(lruhash_markdelfunc_t fptr)
-{
-	if(fptr == NULL) return 1;
-	else if(fptr == &rrset_markdel) return 1;
-	return 0;
-}
-
-int 
 fptr_whitelist_modenv_send_packet(int (*fptr)(ldns_buffer* pkt,
         struct sockaddr_storage* addr, socklen_t addrlen, int timeout,
         struct module_qstate* q, int use_tcp))
 {
 	if(fptr == &worker_send_packet) return 1;
-	else if(fptr == &libworker_send_packet) return 1;
 	return 0;
 }
 
@@ -229,7 +208,6 @@ fptr_whitelist_modenv_send_query(struct outbound_entry* (*fptr)(
         socklen_t addrlen, struct module_qstate* q))
 {
 	if(fptr == &worker_send_query) return 1;
-	else if(fptr == &libworker_send_query) return 1;
 	return 0;
 }
 

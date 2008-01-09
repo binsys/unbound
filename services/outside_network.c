@@ -150,8 +150,6 @@ outnet_tcp_take_into_use(struct waiting_tcp* w, uint8_t* pkt, size_t pkt_len)
 	w->outnet->tcp_free = pend->next_free;
 	pend->next_free = NULL;
 	pend->query = w;
-	pend->c->repinfo.addrlen = w->addrlen;
-	memcpy(&pend->c->repinfo.addr, &w->addr, w->addrlen);
 	ldns_buffer_clear(pend->c->buffer);
 	ldns_buffer_write(pend->c->buffer, pkt, pkt_len);
 	ldns_buffer_flip(pend->c->buffer);
@@ -288,11 +286,6 @@ open_udp_port_range(const char* ifname, struct addrinfo* hints, int porthint)
 	char portstr[32];
 	if(porthint != -1)
 		snprintf(portstr, sizeof(portstr), "%d", porthint);
-	else if(!ifname) {
-		if(hints->ai_family == AF_INET)
-			ifname = "0.0.0.0";
-		else	ifname="::";
-	}
 
 	if((r=getaddrinfo(ifname, ((porthint==-1)?NULL:portstr), hints, 
 		&res)) != 0 || !res) {
@@ -1177,7 +1170,7 @@ outnet_serviced_query(struct outside_network* outnet,
 	sq = lookup_serviced(outnet, buff, dnssec, addr, addrlen);
 	if(sq) {
 		/* see if it is a duplicate notification request for cb_arg */
-		if(callback_list_find(sq, callback_arg, arg_compare)) {
+		if((cb = callback_list_find(sq, callback_arg, arg_compare))) {
 			return sq;
 		}
 	}

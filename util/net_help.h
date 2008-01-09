@@ -187,19 +187,6 @@ int ipstrtoaddr(const char* ip, int port, struct sockaddr_storage* addr,
 	socklen_t* addrlen);
 
 /**
- * Convert ip netblock (ip/netsize) string and port to sockaddr.
- * *SLOW*, does a malloc internally to avoid writing over 'ip' string.
- * @param ip: ip4 or ip6 address string.
- * @param port: port number, host format.
- * @param addr: where to store sockaddr.
- * @param addrlen: length of stored sockaddr is returned.
- * @param net: netblock size is returned.
- * @return 0 on error.
- */
-int netblockstrtoaddr(const char* ip, int port, struct sockaddr_storage* addr,
-	socklen_t* addrlen, int* net);
-
-/**
  * Print string with neat domain name, type and class.
  * @param v: at what verbosity level to print this.
  * @param str: string of message.
@@ -240,28 +227,5 @@ int sockaddr_cmp_addr(struct sockaddr_storage* addr1, socklen_t len1,
  * return: true if sockaddr is ip6.
  */
 int addr_is_ip6(struct sockaddr_storage* addr, socklen_t len);
-
-/**
- * Make sure the sockaddr ends in zeroes. For tree insertion and subsequent
- * comparison.
- * @param addr: the ip4 or ip6 addr.
- * @Param len: lentgh of addr.
- * @param net: number of bits to leave untouched, the rest of the netblock
- * 	address is zeroed.
- */
-void addr_mask(struct sockaddr_storage* addr, socklen_t len, int net);
-
-/**
- * See how many bits are shared, equal, between two addrs.
- * @param addr1: first addr.
- * @param net1: netblock size of first addr.
- * @param addr2: second addr.
- * @param net2: netblock size of second addr.
- * @param addrlen: length of first addr and of second addr.
- * 	They must be of the same length (i.e. same type IP4, IP6).
- * @return: number of bits the same.
- */
-int addr_in_common(struct sockaddr_storage* addr1, int net1,
-	struct sockaddr_storage* addr2, int net2, socklen_t addrlen);
 
 #endif /* NET_HELP_H */

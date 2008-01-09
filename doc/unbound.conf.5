@@ -48,12 +48,6 @@ server:
 	# logfile: "/etc/unbound/unbound.log"  #uncomment to use logfile.
 	pidfile: "/etc/unbound/unbound.pid"
 	# verbosity: 1		# uncomment and increase to get more logging.
-
-	# listen on all interfaces, answer queries from the local subnet.
-	interface: 0.0.0.0
-	interface: ::0
-	access-control: 10.0.0.0/8 allow
-	access-control: 2001:DB8::/64 allow
 .fi
 .Sh FILE FORMAT
 There must be whitespace between keywords. Attribute keywords end with a colon ':'. An attribute
@@ -134,7 +128,7 @@ Number of slabs in the RRset cache. Slabs reduce lock contention by threads.
 Must be set to a power of 2. 
 .It \fBcache-max-ttl:\fR <seconds>
 Time to live maximum for RRsets and messages in the cache. Default is 
-86400 seconds (1 day). If the maximum kicks in, responses to clients 
+864000 seconds (10 days). If the maximum kicks in, responses to clients 
 still get decrementing TTLs based on the original (larger) values. 
 When the internal TTL expires, the cache item has expired.
 Can be set lower to force the resolver to query for data often, and not
@@ -161,16 +155,6 @@ Enable or disable whether ip6 queries are answered. Default is yes.
 Enable or disable whether UDP queries are answered. Default is yes.
 .It \fBdo-tcp:\fR <yes or no>
 Enable or disable whether TCP queries are answered. Default is yes.
-.It \fBaccess-control:\fR <IP netblock> <action>
-The netblock is given as an IP4 or IP6 address with /size appended for a 
-classless network block. The action can be deny, refuse or allow.
-Deny stops queries from hosts from that netblock.
-Refuse stops queries too, but sends a DNS rcode REFUSED error message back.
-Allow gives access to clients from that netblock.
-By default only localhost is allowed, the rest is refused.
-The default is refused, because that is protocol-friendly. The DNS protocol
-is not designed to handle dropped packets due to policy, and dropping may 
-result in (possibly excessive) retried queries.
 .It \fBchroot:\fR <directory>
 If given a chroot is done to the given directory. The default is 
 "/etc/unbound". If you give "" no chroot is performed.
@@ -324,102 +308,6 @@ Number of bytes size of the key cache. Default is 4 megabytes.
 Number of slabs in the key cache. Slabs reduce lock contention by threads.
 Must be set to a power of 2. Setting (close) to the number of cpus is a 
 reasonable guess.
-.It \fBlocal-zone:\fR <zone> <type>
-Configure a local zone. The type determines the answer to give if there is
-no match from local-data. The types are deny, refuse, static, transparent, 
-redirect, nodefault, and are explained below. After that the default settings
-are listed. Use local-data: to enter data into the local zone. Answers for
-local zones are authoritative DNS answers. By default the zones are class IN.
-.Bl -tag -width indent
-.It \fIdeny\fR 
-Do not send an answer, drop the query.
-If there is a match from local data, the query is answered.
-.It \fIrefuse\fR 
-Send an error message reply, with rcode REFUSED.
-If there is a match from local data, the query is answered.
-.It \fIstatic\fR 
-If there is a match from local data, the query is answered.
-Otherwise, the query is answered with nodata or nxdomain.
-For a negative answer a SOA is included in the answer if present
-as local-data for the zone apex domain.
-.It \fItransparent\fR 
-If there is a match from local data, the query is answered.
-Otherwise, the query is resolved normally.
-If no local-zone is given local-data causes a transparent zone
-to be created by default.
-.It \fIredirect\fR 
-The query is answered from the local data for the zone name. 
-There may be no local data beneath the zone name.
-This answers queries for the zone, and all subdomains of the zone
-with the local data for the zone.
-It can be used to redirect a domain to a different address, with 
-local-zone: "example.com." redirect and 
-local-data: "example.com. A 127.0.0.1"
-queries for www.example.com and www.foo.example.com are redirected.
-.It \fInodefault\fR 
-Used to turn off default contents for AS112 zones. The other types
-also turn off default contents for the zone. The 'nodefault' option 
-has no other effect than turning off default contents for the 
-given zone.
-.El
-The default zones are localhost, reverse 127.0.0.1 and ::1, and the AS112
-zones. The AS112 zones are reverse DNS zones for private use and reserved
-IP addresses for which the servers on the internet cannot provide correct
-answers. They are configured by default to give nxdomain (no reverse 
-information) answers. The defaults can be turned off by specifying your
-own local-zone of that name, or using the 'nodefault' type. Below is a 
-list of the default zone contents.
-.Bl -tag -width indent
-.It \fIlocalhost\fR 
-The IP4 and IP6 localhost information is given. NS and SOA records are provided
-for completeness and to satisfy some DNS update tools. Default content:
-.nf
-local-zone: "localhost." static
-local-data: "localhost. 10800 IN NS localhost."
-local-data: "localhost. 10800 IN SOA localhost. nobody.invalid. 1 3600 1200 604800 10800"
-local-data: "localhost. 10800 IN A 127.0.0.1"
-local-data: "localhost. 10800 IN AAAA ::1"
-.fi
-.It \fIreverse IPv4 loopback\fR 
-Default content:
-.nf
-local-zone: "127.in-addr.arpa." static
-local-data: "127.in-addr.arpa. 10800 IN NS localhost."
-local-data: "127.in-addr.arpa. 10800 IN SOA localhost. nobody.invalid. 1 3600 1200 604800 10800"
-local-data: "1.0.0.127.in-addr.arpa. 10800 IN PTR localhost."
-.fi
-.It \fIreverse IPv6 loopback\fR 
-Default content:
-.nf
-local-zone: "1.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.ip6.arpa." static
-local-data: "1.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.ip6.arpa. 10800 IN NS localhost."
-local-data: "1.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.ip6.arpa. 10800 IN SOA localhost. nobody.invalid. 1 3600 1200 604800 10800"
-local-data: "1.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.ip6.arpa. 10800 IN PTR localhost."
-.fi
-.It \fIreverse RFC1918 local use zones\fR 
-Reverse data for zones 10.in-addr.arpa, 16.172.in-addr.arpa to 
-31.172.in-addr.arpa, 168.192.in-addr.arpa.
-The \fBlocal-zone:\fR is set static and as \fBlocal-data:\fR SOA and NS 
-records are provided.
-.It \fIreverse RFC3330 IP4 this, link-local, testnet and broadcast\fR 
-Reverse data for zones 0.in-addr.arpa, 254.169.in-addr.arpa, 
-2.0.192.in-addr.arpa, 255.255.255.255.in-addr.arpa.
-.It \fIreverse RFC4291 IP6 unspecified\fR
-Reverse data for zone 0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.ip6.arpa.
-.It \fIreverse RFC4193 IPv6 Locally Assigned Local Addresses\fR
-Reverse data for zone D.F.ip6.arpa.
-.It \fIreverse RFC4291 IPv6 Link Local Addresses\fR
-Reverse data for zones 8.E.F.ip6.arpa to B.E.F.ip6.arpa.
-.El
-.\" End of local-zone listing.
-.It \fBlocal-data:\fR "<resource record string>"
-Configure local data, which is served in reply to queries for it.
-The query has to match exactly unless you configure the local-zone as 
-redirect. If not matched exactly, the local-zone type determines
-further processing. If local-data is configured that is not a subdomain of
-a local-zone, a transparent local-zone is configured. 
-For record types such as TXT, use single quotes, as in 
-local-data: 'example. TXT "text"'.
 .El
 .Ss Stub Zone Options
 There may be multiple

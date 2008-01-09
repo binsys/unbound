@@ -279,10 +279,8 @@ parse_create_rrset(ldns_buffer* pkt, struct rrset_parse* pset,
 	if(!*data)
 		return 0;
 	/* copy & decompress */
-	if(!parse_rr_copy(pkt, pset, *data)) {
-		if(!region) free(*data);
+	if(!parse_rr_copy(pkt, pset, *data))
 		return 0;
-	}
 	return 1;
 }
 
@@ -543,9 +541,12 @@ msgreply_sizefunc(void* k, void* d)
 }
 
 void 
-query_entry_delete(void *k, void* ATTR_UNUSED(arg))
+query_entry_delete(void *k, void* ATTR_UNUSED(arg), int is_locked)
 {
 	struct msgreply_entry* q = (struct msgreply_entry*)k;
+	if(is_locked) {
+		lock_rw_unlock(&q->entry.lock);
+	}
 	lock_rw_destroy(&q->entry.lock);
 	query_info_clear(&q->key);
 	free(q);
@@ -646,27 +647,6 @@ reply_info_copy(struct reply_info* rep, struct alloc_cache* alloc,
 		return NULL;
 	}
 	return cp;
-}
-
-uint8_t* 
-reply_find_final_cname_target(struct query_info* qinfo, struct reply_info* rep)
-{
-	uint8_t* sname = qinfo->qname;
-	size_t snamelen = qinfo->qname_len;
-	size_t i;
-	for(i=0; i<rep->an_numrrsets; i++) {
-		struct ub_packed_rrset_key* s = rep->rrsets[i];
-		/* follow CNAME chain (if any) */
-		if(ntohs(s->rk.type) == LDNS_RR_TYPE_CNAME && 
-			ntohs(s->rk.rrset_class) == qinfo->qclass && 
-			snamelen == s->rk.dname_len &&
-			query_dname_compare(sname, s->rk.dname) == 0) {
-			get_cname_target(s, &sname, &snamelen);
-		}
-	}
-	if(sname != qinfo->qname)
-		return sname;
-	return NULL;
 }
 
 struct ub_packed_rrset_key* 

@@ -130,16 +130,16 @@ typedef size_t (*lruhash_sizefunc_t)(void*, void*);
 typedef int (*lruhash_compfunc_t)(void*, void*);
 
 /** old keys are deleted. 
- * The RRset type has to revoke its ID number, markdel() is used first.
- * This function is called: func(key, userarg) */
-typedef void (*lruhash_delkeyfunc_t)(void*, void*);
+ * If is_locked is set, then the routine must unlock the item before deletion.
+ * If is_locked is not set, then this item is not locked. This allows the 
+ * routine to perform operations within the critical region of the lock 
+ * of the key. The critical region has been locked before the delete happened.
+ * The RRset type has to revoke its ID number inside the critical region.
+ * This function is called: func(key, userarg, is_locked) */
+typedef void (*lruhash_delkeyfunc_t)(void*, void*, int);
 
 /** old data is deleted. This function is called: func(data, userarg). */
 typedef void (*lruhash_deldatafunc_t)(void*, void*);
-
-/** mark a key as pending to be deleted (and not to be used by anyone). 
- * called: func(key) */
-typedef void (*lruhash_markdelfunc_t)(void*);
 
 /**
  * Hash table that keeps LRU list of entries.
@@ -155,8 +155,6 @@ struct lruhash {
 	lruhash_delkeyfunc_t delkeyfunc;
 	/** how to delete data. */
 	lruhash_deldatafunc_t deldatafunc;
-	/** how to mark a key pending deletion */
-	lruhash_markdelfunc_t markdelfunc;
 	/** user argument for user functions */
 	void* cb_arg;
 
@@ -295,11 +293,6 @@ struct lruhash_entry* lruhash_lookup(struct lruhash* table, hashvalue_t hash,
  * @param entry: entry to make first in LRU.
  */
 void lru_touch(struct lruhash* table, struct lruhash_entry* entry);
-
-/**
- * Set the markdelfunction (or NULL)
- */
-void lruhash_setmarkdel(struct lruhash* table, lruhash_markdelfunc_t md);
 
 /************************* Internal functions ************************/
 /*** these are only exposed for unit tests. ***/

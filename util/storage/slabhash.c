@@ -192,20 +192,13 @@ int test_slabhash_compfunc(void* key1, void* key2)
 	return -1;
 }
 
-void test_slabhash_delkey(void* key, void* ATTR_UNUSED(arg))
+void test_slabhash_delkey(void* key, void* ATTR_UNUSED(arg), int l)
 {
+	if(l) { lock_rw_unlock(&((struct slabhash_testkey*)key)->entry.lock); }
 	delkey((struct slabhash_testkey*)key);
 }
 
 void test_slabhash_deldata(void* data, void* ATTR_UNUSED(arg))
 {
 	deldata((struct slabhash_testdata*)data);
-}
-
-void slabhash_setmarkdel(struct slabhash* sl, lruhash_markdelfunc_t md)
-{
-	size_t i;
-	for(i=0; i<sl->size; i++) {
-		lruhash_setmarkdel(sl->array[i], md);
-	}
 }

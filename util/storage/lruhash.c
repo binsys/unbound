@@ -106,7 +106,7 @@ bin_delete(struct lruhash* table, struct lruhash_bin* bin)
 	while(p) {
 		np = p->overflow_next;
 		d = p->data;
-		(*table->delkeyfunc)(p->key, table->cb_arg);
+		(*table->delkeyfunc)(p->key, table->cb_arg, 0);
 		(*table->deldatafunc)(d, table->cb_arg);
 		p = np;
 	}
@@ -144,7 +144,6 @@ bin_split(struct lruhash* table, struct lruhash_bin* newa,
 		}
 		lock_quick_unlock(&newa[i].lock);
 		lock_quick_unlock(&newa[newbit|i].lock);
-		lock_quick_unlock(&table->array[i].lock);
 	}
 }
 
@@ -206,9 +205,6 @@ reclaim_space(struct lruhash* table, struct lruhash_entry** list)
 		*list = d;
 		lock_rw_wrlock(&d->lock);
 		table->space_used -= table->sizefunc(d->key, d->data);
-		if(table->markdelfunc)
-			(*table->markdelfunc)(d->key);
-		lock_rw_unlock(&d->lock);
 		lock_quick_unlock(&bin->lock);
 	}
 }
@@ -249,6 +245,7 @@ table_grow(struct lruhash* table)
 	/* delete the old bins */
 	lock_unprotect(&table->lock, table->array);
 	for(i=0; i<table->size; i++) {
+		lock_quick_unlock(&table->array[i].lock);
 		lock_quick_destroy(&table->array[i].lock);
 	}
 	free(table->array);
@@ -306,7 +303,6 @@ lruhash_insert(struct lruhash* table, hashvalue_t hash,
 	log_assert(fptr_whitelist_hash_delkeyfunc(table->delkeyfunc));
 	log_assert(fptr_whitelist_hash_deldatafunc(table->deldatafunc));
 	log_assert(fptr_whitelist_hash_compfunc(table->compfunc));
-	log_assert(fptr_whitelist_hash_markdelfunc(table->markdelfunc));
 	need_size = table->sizefunc(entry->key, data);
 	if(cb_arg == NULL) cb_arg = table->cb_arg;
 
@@ -327,7 +323,7 @@ lruhash_insert(struct lruhash* table, hashvalue_t hash,
 		/* if so: update data - needs a writelock */
 		table->space_used += need_size -
 			(*table->sizefunc)(found->key, found->data);
-		(*table->delkeyfunc)(entry->key, cb_arg);
+		(*table->delkeyfunc)(entry->key, cb_arg, 0);
 		lru_touch(table, found);
 		lock_rw_wrlock(&found->lock);
 		(*table->deldatafunc)(found->data, cb_arg);
@@ -345,7 +341,7 @@ lruhash_insert(struct lruhash* table, hashvalue_t hash,
 	while(reclaimlist) {
 		struct lruhash_entry* n = reclaimlist->overflow_next;
 		void* d = reclaimlist->data;
-		(*table->delkeyfunc)(reclaimlist->key, cb_arg);
+		(*table->delkeyfunc)(reclaimlist->key, cb_arg, 1);
 		(*table->deldatafunc)(d, cb_arg);
 		reclaimlist = n;
 	}
@@ -383,7 +379,6 @@ lruhash_remove(struct lruhash* table, hashvalue_t hash, void* key)
 	log_assert(fptr_whitelist_hash_delkeyfunc(table->delkeyfunc));
 	log_assert(fptr_whitelist_hash_deldatafunc(table->deldatafunc));
 	log_assert(fptr_whitelist_hash_compfunc(table->compfunc));
-	log_assert(fptr_whitelist_hash_markdelfunc(table->markdelfunc));
 
 	lock_quick_lock(&table->lock);
 	bin = &table->array[hash & table->size_mask];
@@ -400,13 +395,10 @@ lruhash_remove(struct lruhash* table, hashvalue_t hash, void* key)
 	table->space_used -= (*table->sizefunc)(entry->key, entry->data);
 	lock_quick_unlock(&table->lock);
 	lock_rw_wrlock(&entry->lock);
-	if(table->markdelfunc)
-		(*table->markdelfunc)(entry->key);
-	lock_rw_unlock(&entry->lock);
 	lock_quick_unlock(&bin->lock);
 	/* finish removal */
 	d = entry->data;
-	(*table->delkeyfunc)(entry->key, table->cb_arg);
+	(*table->delkeyfunc)(entry->key, table->cb_arg, 1);
 	(*table->deldatafunc)(d, table->cb_arg);
 }
 
@@ -422,10 +414,7 @@ bin_clear(struct lruhash* table, struct lruhash_bin* bin)
 		lock_rw_wrlock(&p->lock);
 		np = p->overflow_next;
 		d = p->data;
-		if(table->markdelfunc)
-			(*table->markdelfunc)(p->key);
-		lock_rw_unlock(&p->lock);
-		(*table->delkeyfunc)(p->key, table->cb_arg);
+		(*table->delkeyfunc)(p->key, table->cb_arg, 1);
 		(*table->deldatafunc)(d, table->cb_arg);
 		p = np;
 	}
@@ -441,7 +430,6 @@ lruhash_clear(struct lruhash* table)
 		return;
 	log_assert(fptr_whitelist_hash_delkeyfunc(table->delkeyfunc));
 	log_assert(fptr_whitelist_hash_deldatafunc(table->deldatafunc));
-	log_assert(fptr_whitelist_hash_markdelfunc(table->markdelfunc));
 
 	lock_quick_lock(&table->lock);
 	for(i=0; i<table->size; i++) {
@@ -502,12 +490,4 @@ lruhash_get_mem(struct lruhash* table)
 	lock_quick_unlock(&table->lock);
 	s += lock_get_mem(&table->lock);
 	return s;
-}
-
-void 
-lruhash_setmarkdel(struct lruhash* table, lruhash_markdelfunc_t md)
-{
-	lock_quick_lock(&table->lock);
-	table->markdelfunc = md;
-	lock_quick_unlock(&table->lock);
 }

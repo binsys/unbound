@@ -208,8 +208,6 @@ replay_moment_read(char* remain, FILE* in, const char* name, int* lineno,
 	} else if(parse_keyword(&remain, "QUERY")) {
 		mom->evt_type = repevt_front_query;
 		readentry = 1;
-		if(!extstrtoaddr("127.0.0.1", &mom->addr, &mom->addrlen))
-			fatal_exit("internal error");
 	} else if(parse_keyword(&remain, "CHECK_ANSWER")) {
 		mom->evt_type = repevt_front_reply;
 		readentry = 1;
@@ -231,18 +229,13 @@ replay_moment_read(char* remain, FILE* in, const char* name, int* lineno,
 	while(isspace((int)*remain))
 		remain++;
 	if(parse_keyword(&remain, "ADDRESS")) {
-		while(isspace((int)*remain))
-			remain++;
-		if(strlen(remain) > 0) /* remove \n */
-			remain[strlen(remain)-1] = 0;
-		printf("remain '%s'\n", remain);
 		if(!extstrtoaddr(remain, &mom->addr, &mom->addrlen)) {
 			log_err("line %d: could not parse ADDRESS: %s", 
 				*lineno, remain);
 			free(mom);
 			return NULL;
 		}
-	} 
+	}
 
 	if(readentry) {
 		mom->match = read_entry(in, name, lineno, ttl, or, prev);

@@ -264,8 +264,8 @@ do_chroot(struct daemon* daemon, struct config_file* cfg, int debug_mode)
 	uid_t uid;
 	gid_t gid;
 	/* initialize, but not to 0 (root) */
-	memset(&uid, 112, sizeof(uid));
-	memset(&gid, 112, sizeof(gid));
+	memset(&uid, -12, sizeof(uid));
+	memset(&gid, -12, sizeof(gid));
 	log_assert(cfg);
 
 	/* daemonize last to be able to print error to user */
@@ -339,8 +339,8 @@ run_daemon(char* cfgfile, int cmdline_verbose, int debug_mode)
 		fatal_exit("alloc failure");
 	while(!daemon->need_to_exit) {
 		if(done_chroot)
-			verbose(VERB_OPS, "Restart of %s.", PACKAGE_STRING);
-		else	verbose(VERB_OPS, "Start of %s.", PACKAGE_STRING);
+			log_info("Restart of %s.", PACKAGE_STRING);
+		else	log_info("Start of %s.", PACKAGE_STRING);
 
 		/* config stuff */
 		if(!(cfg = config_create()))

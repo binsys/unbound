@@ -268,7 +268,7 @@ void query_info_clear(struct query_info* m);
 size_t msgreply_sizefunc(void* k, void* d);
 
 /** delete msgreply_entry key structure */
-void query_entry_delete(void *q, void* arg);
+void query_entry_delete(void *q, void* arg, int is_locked);
 
 /** delete reply_info data structure */
 void reply_info_delete(void* d, void* arg);
@@ -314,15 +314,6 @@ struct reply_info* reply_info_copy(struct reply_info* rep,
 int parse_copy_decompress_rrset(ldns_buffer* pkt, struct msg_parse* msg,
 	struct rrset_parse *pset, struct regional* region, 
 	struct ub_packed_rrset_key* pk);
-
-/**
- * Find final cname target in reply, the one matching qinfo. Follows CNAMEs.
- * @param qinfo: what to start with.
- * @param rep: looks in answer section of this message.
- * @return: pointer dname, or NULL if not found.
- */
-uint8_t* reply_find_final_cname_target(struct query_info* qinfo,
-	struct reply_info* rep);
 
 /**
  * Find answer rrset in reply, the one matching qinfo. Follows CNAMEs, so the

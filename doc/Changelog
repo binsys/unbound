@@ -1,153 +1,20 @@
 9 January 2008: Wouter
 	- fixup openssl RAND problem, when the system is not configured to
-	  give entropy, and the rng needs to be seeded.
-
-4 January 2008: Wouter
-	- document misconfiguration in private network.
-
-2 January 2008: Wouter
-	- fixup typo in requirements.
-	- document that 'refused' is a better choice than 'drop' for 
-	  the access control list, as refused will stop retries.
-
-7 December 2007: Wouter
-	- unbound-host has a -d option to show what happens. This can help
-	  with debugging (why do I get this answer).
-	- fixup CNAME handling, on nodata, sets and display canonname.
-	- dot removed from CNAME display.
-	- respect -v for NXDOMAINs.
-	- updated ldns-src.tar.gz with ldns-trunk today (1.2.2 fixes).
-	- size_t to int for portability of the header file.
-	- fixup bogus handling.
-	- dependencies and lint for unbound-host.
-
-6 December 2007: Wouter
-	- library resolution works in foreground mode, unbound-host app
-	  receives data.
-	- unbound-host prints rdata using ldns.
-	- unbound-host accepts trust anchors, and prints validation
-	  information when you give -v.
-
-5 December 2007: Wouter
-	- locking in context_new() inside the function.
-	- setup of libworker.
-
-4 December 2007: Wouter
-	- minor Makefile fixup.
-	- moved module-stack code out of daemon/daemon into services/modstack,
-	  preparing for code-reuse.
-	- move context into own header file.
-	- context query structure.
-	- removed unused variable pwd from checkconf.
-	- removed unused assignment from outside netw.
-	- check timeval length of string.
-	- fixup error in val_utils getsigner.
-	- fixup same (*var) error in netblocktostr.
-	- fixup memleak on parse error in localzone.
-	- fixup memleak on packet parse error.
-	- put ; after union in parser.y.
-	- small hardening in iter_operate against iq==NULL.
-	- hardening, if error reply with rcode=0 (noerror) send servfail.
-	- fixup same (*var) error in find_rrset in msgparse, was harmless.
-	- check return value of evtimer_add().
-	- fixup lockorder in lruhash_reclaim(), building up a list of locked
-	  entries one at a time. Instead they are removed and unlocked.
-	- fptr_wlist for markdelfunc.
-	- removed is_locked param from lruhash delkeyfunc.
-	- moved bin_unlock during bin_split purely to please.
+	  give entropy, and the rng needs to be seeded. (for 0.7.2)
 
 3 December 2007: Wouter
-	- changed checkconf/ to smallapp/ to make room for more support tools.
-	  (such as unbound-host).
-	- install dirs created with -m 755 because they need to be accessible.
-	- library extensive featurelist added to TODO.
-	- please doxygen, lint.
-	- library test application, with basic functionality.
-	- fix for building in a subdirectory. 
-	- link lib fix for Leopard.
-
-30 November 2007: Wouter
-	- makefile that creates libunbound.la, basic file or libunbound.a
-	  when creating static executables (no libtool).
-	- more API setup.
-
-29 November 2007: Wouter
-	- 0.9 public API start.
-
-28 November 2007: Wouter
-	- Changeup plan for 0.8 - no complication needed, a simple solution
-	  has been chosen for authoritative features.
-	- you can use single quotes in the config file, so it is possible
-	  to specify TXT records in local data.
-	- fixup small memory problem in implicit transparent zone creation.
-	- test for implicit zone creation and multiple RR RRsets local data.
-	- local-zone nodefault test.
-	- show testbound testlist on commit.
-	- iterator normalizer changes CNAME chains ending in NXDOMAIN where
-	  the packet got rcode NXDOMAIN into rcode NOERROR. (since the initial
-	  domain exists).
-	- nicer verbosity: 0 and 1 levels.
-	- lower nonRDquery chance of eliciting wrongly typed validation
-	  requiring message from the cache.
-	- fix for nonRDquery validation typing; nodata is detected when
-	  SOA record in auth section (all validation-requiring nodata messages
-	  have a SOA record in authority, so this is OK for the validator),
-	  and NS record is needed to be a referral.
-	- duplicate checking when adding NSECs for a CNAME, and test.
-	- created svn tag 0.8, after completing testbed tests.
-
-27 November 2007: Wouter
-	- per suggestion in rfc2308, replaced default max-ttl value with 1 day.
-	- set size of msgparse lookup table to 32, from 1024, so that its size
-	  is below the 2048 regional large size threshold, and does not cause
-	  a call to malloc when a message is parsed.
-	- update of memstats tool to print number of allocation calls.
-	  This is what is taking time (not space) and indicates the avg size
-	  of the allocations as well. region_alloc stat is removed.
-
-22 November 2007: Wouter
-	- noted EDNS in-the-middle dropping trouble as a TODO.
-	  At this point theoretical, no user trouble has been reported.
-	- added all default AS112 zones.
-	- answers from local zone content.
-		* positive answer, the rrset in question
-		* nodata answer (exist, but not that type).
-		* nxdomain answer (domain does not exist).
-		* empty-nonterminal answer.
-		* But not: wildcard, nsec, referral, rrsig, cname/dname,
-			or additional section processing, NS put in auth.
-	- test for correct working of static and transparent and couple
-	  of important defaults (localhost, as112, reverses). 
-	  Also checks deny and refuse settings.
-	- fixup implicit zone generation and AA bit for NXDOMAIN on localdata.
-
-21 November 2007: Wouter
-	- local zone internal data setup.
-
-20 November 2007: Wouter
-	- 0.8 - str2list config support for double string config options.
-	- local-zone and local-data options, config storage and documentation.
+	- Fixup building in a subdirectory. (for 0.7.2)
 
 19 November 2007: Wouter
-	- do not downcase NSEC and RRSIG for verification. Follows 
-	  draft-ietf-dnsext-dnssec-bis-updates-06.txt.
-	- fixup leaking unbound daemons at end of tests.
-	- README file updated.
-	- nice libevent not found error.
-	- README talks about gnu make.
-	- 0.8: unit test for addr_mask and fixups for it.
-	  and unit test for addr_in_common().
-	- 0.8: access-control config file element.
-	  and unit test rpl replay file.
-	- 0.8: fixup address reporting from netevent.
-
-16 November 2007: Wouter
-	- privilege separation is not needed in unbound at this time.
-	  TODO item marked as such.
-	- created beta-0.7 branch for support.
-	- tagged 0.7 for beta release.
-	- moved trunk to 0.8 for 0.8(auth features) development.
-	- 0.8: access control list setup.
+	- version 0.7.1:
+		* includes tpkg fixes to kill daemons at end of test
+		* includes NSEC/RRSIG not downcasing fixup from
+		dnssec-bis-updates draft-06.
+		* README file updated.
+		* nice libevent not found error.
+		* README talks about gnu make.
+	- for 0.7.2:
+		* fixup for donotq matching.
 
 15 November 2007: Wouter
 	- review fixups from Jelte.

@@ -45,7 +45,6 @@
 #include "util/random.h"
 #include "daemon/worker.h"
 #include "daemon/daemon.h"
-#include "daemon/acl_list.h"
 #include "util/netevent.h"
 #include "util/config_file.h"
 #include "util/module.h"
@@ -58,7 +57,6 @@
 #include "services/cache/infra.h"
 #include "services/cache/dns.h"
 #include "services/mesh.h"
-#include "services/localzone.h"
 #include "util/data/msgparse.h"
 #include "util/data/msgencode.h"
 #include "util/data/dname.h"
@@ -665,27 +663,11 @@ worker_handle_request(struct comm_point* c, void* arg, int error,
 	struct lruhash_entry* e;
 	struct query_info qinfo;
 	struct edns_data edns;
-	enum acl_access acl;
 
 	if(error != NETEVENT_NOERROR) {
 		/* some bad tcp query DNS formats give these error calls */
 		verbose(VERB_ALGO, "handle request called with err=%d", error);
 		return 0;
-	}
-	acl = acl_list_lookup(worker->daemon->acl, &repinfo->addr, 
-		repinfo->addrlen);
-	if(acl == acl_deny) {
-		comm_point_drop_reply(repinfo);
-		return 0;
-	} else if(acl == acl_refuse) {
-		ldns_buffer_set_limit(c->buffer, LDNS_HEADER_SIZE);
-		ldns_buffer_write_at(c->buffer, 4, 
-			(uint8_t*)"\0\0\0\0\0\0\0\0", 8);
-		LDNS_QR_SET(ldns_buffer_begin(c->buffer));
-		LDNS_RCODE_SET(ldns_buffer_begin(c->buffer), 
-			LDNS_RCODE_REFUSED);
-		log_buf(VERB_ALGO, "refuse", c->buffer);
-		return 1;
 	}
 	if((ret=worker_check_request(c->buffer, worker)) != 0) {
 		verbose(VERB_ALGO, "worker check request: bad query.");
@@ -755,10 +737,6 @@ worker_handle_request(struct comm_point* c, void* arg, int error,
 	if(qinfo.qclass == LDNS_RR_CLASS_CH && answer_chaos(worker, &qinfo,
 		&edns, c->buffer)) {
 		return 1;
-	}
-	if(local_zones_answer(worker->daemon->local_zones, &qinfo, &edns, 
-		c->buffer, worker->scratchpad)) {
-		return (ldns_buffer_limit(c->buffer) != 0);
 	}
 	h = query_info_hash(&qinfo);
 	if((e=slabhash_lookup(worker->env.msg_cache, h, &qinfo, 0))) {
@@ -967,7 +945,8 @@ worker_init(struct worker* worker, struct config_file *cfg,
 	worker->env.alloc = &worker->alloc;
 	worker->env.rnd = worker->rndstate;
 	worker->env.scratch = worker->scratchpad;
-	worker->env.mesh = mesh_create(&worker->daemon->mods, &worker->env);
+	worker->env.mesh = mesh_create(worker->daemon->num_modules,
+		worker->daemon->modfunc, &worker->env);
 	worker->env.detach_subs = &mesh_detach_subs;
 	worker->env.attach_sub = &mesh_attach_sub;
 	worker->env.kill_sub = &mesh_state_delete;
@@ -992,11 +971,10 @@ worker_delete(struct worker* worker)
 {
 	if(!worker) 
 		return;
-	if(worker->env.mesh && verbosity >= VERB_OPS) {
+	if(worker->env.mesh)
 		mesh_stats(worker->env.mesh, "mesh has");
-		server_stats_log(&worker->stats, worker->thread_num);
-		worker_mem_report(worker, NULL);
-	}
+	server_stats_log(&worker->stats, worker->thread_num);
+	worker_mem_report(worker, NULL);
 	mesh_delete(worker->env.mesh);
 	ldns_buffer_free(worker->env.scratch_buffer);
 	listen_delete(worker->front);
@@ -1073,46 +1051,4 @@ worker_alloc_cleanup(void* arg)
 	struct worker* worker = (struct worker*)arg;
 	slabhash_clear(&worker->env.rrset_cache->table);
 	slabhash_clear(worker->env.msg_cache);
-}
-
-/* --- fake callbacks for fptr_wlist to work --- */
-int libworker_send_packet(ldns_buffer* ATTR_UNUSED(pkt), 
-	struct sockaddr_storage* ATTR_UNUSED(addr), 
-	socklen_t ATTR_UNUSED(addrlen), int ATTR_UNUSED(timeout), 
-	struct module_qstate* ATTR_UNUSED(q), int ATTR_UNUSED(use_tcp))
-{
-	log_assert(0);
-	return 0;
-}
-
-struct outbound_entry* libworker_send_query(uint8_t* ATTR_UNUSED(qname), 
-	size_t ATTR_UNUSED(qnamelen), uint16_t ATTR_UNUSED(qtype), 
-	uint16_t ATTR_UNUSED(qclass), uint16_t ATTR_UNUSED(flags), 
-	int ATTR_UNUSED(dnssec), struct sockaddr_storage* ATTR_UNUSED(addr), 
-	socklen_t ATTR_UNUSED(addrlen), struct module_qstate* ATTR_UNUSED(q))
-{
-	log_assert(0);
-	return 0;
-}
-
-int libworker_handle_reply(struct comm_point* ATTR_UNUSED(c), 
-	void* ATTR_UNUSED(arg), int ATTR_UNUSED(error),
-        struct comm_reply* ATTR_UNUSED(reply_info))
-{
-	log_assert(0);
-	return 0;
-}
-
-int libworker_handle_service_reply(struct comm_point* ATTR_UNUSED(c), 
-	void* ATTR_UNUSED(arg), int ATTR_UNUSED(error),
-        struct comm_reply* ATTR_UNUSED(reply_info))
-{
-	log_assert(0);
-	return 0;
-}
-
-int context_query_cmp(const void* ATTR_UNUSED(a), const void* ATTR_UNUSED(b))
-{
-	log_assert(0);
-	return 0;
 }

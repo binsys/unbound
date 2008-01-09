@@ -88,7 +88,8 @@ mesh_state_ref_compare(const void* ap, const void* bp)
 }
 
 struct mesh_area* 
-mesh_create(struct module_stack* stack, struct module_env* env)
+mesh_create(int num_modules, struct module_func_block** modfunc,
+	struct module_env* env)
 {
 	struct mesh_area* mesh = calloc(1, sizeof(struct mesh_area));
 	if(!mesh) {
@@ -101,7 +102,8 @@ mesh_create(struct module_stack* stack, struct module_env* env)
 		log_err("mesh area alloc: out of memory");
 		return NULL;
 	}
-	mesh->mods = *stack;
+	mesh->num_modules = num_modules;
+	mesh->modfunc = modfunc;
 	mesh->env = env;
 	rbtree_init(&mesh->run, &mesh_state_compare);
 	rbtree_init(&mesh->all, &mesh_state_compare);
@@ -155,9 +157,9 @@ void mesh_new_client(struct mesh_area* mesh, struct query_info* qinfo,
 		mesh->num_detached_states++;
 		added = 1;
 	}
-	if(!s->reply_list && !s->cb_list && s->super_set.count == 0)
+	if(!s->reply_list && s->super_set.count == 0)
 		was_detached = 1;
-	if(!s->reply_list && !s->cb_list)
+	if(!s->reply_list)
 		was_noreply = 1;
 	/* add reply to s */
 	if(!mesh_state_add_reply(s, edns, rep, qid, qflags)) {
@@ -180,52 +182,6 @@ void mesh_new_client(struct mesh_area* mesh, struct query_info* qinfo,
 	mesh->num_reply_addrs++;
 	if(added)
 		mesh_run(mesh, s, module_event_new, NULL);
-}
-
-int 
-mesh_new_callback(struct mesh_area* mesh, struct query_info* qinfo,
-	uint16_t qflags, struct edns_data* edns, ldns_buffer* buf, 
-	uint16_t qid, mesh_cb_func_t cb, void* cb_arg)
-{
-	struct mesh_state* s = mesh_area_find(mesh, qinfo, qflags, 0);
-	int was_detached = 0;
-	int was_noreply = 0;
-	int added = 0;
-	/* see if it already exists, if not, create one */
-	if(!s) {
-		struct rbnode_t* n;
-		s = mesh_state_create(mesh->env,qinfo, qflags, 0);
-		if(!s) {
-			return 0;
-		}
-		n = rbtree_insert(&mesh->all, &s->node);
-		log_assert(n != NULL);
-		/* set detached (it is now) */
-		mesh->num_detached_states++;
-		added = 1;
-	}
-	if(!s->reply_list && !s->cb_list && s->super_set.count == 0)
-		was_detached = 1;
-	if(!s->reply_list && !s->cb_list)
-		was_noreply = 1;
-	/* add reply to s */
-	if(!mesh_state_add_cb(s, edns, buf, cb, cb_arg, qid, qflags)) {
-			if(added)
-				mesh_state_delete(&s->s);
-			return 0;
-	}
-	/* update statistics */
-	if(was_detached) {
-		log_assert(mesh->num_detached_states > 0);
-		mesh->num_detached_states--;
-	}
-	if(was_noreply) {
-		mesh->num_reply_states ++;
-	}
-	mesh->num_reply_addrs++;
-	if(added)
-		mesh_run(mesh, s, module_event_new, NULL);
-	return 1;
 }
 
 void mesh_report_reply(struct mesh_area* mesh, struct outbound_entry* e,
@@ -281,7 +237,7 @@ mesh_state_create(struct module_env* env, struct query_info* qinfo,
 	mstate->s.env = env;
 	mstate->s.mesh_info = mstate;
 	/* init modules */
-	for(i=0; i<env->mesh->mods.num; i++) {
+	for(i=0; i<env->mesh->num_modules; i++) {
 		mstate->s.minfo[i] = NULL;
 		mstate->s.ext_state[i] = module_state_initial;
 	}
@@ -297,9 +253,9 @@ mesh_state_cleanup(struct mesh_state* mstate)
 		return;
 	/* de-init modules */
 	mesh = mstate->s.env->mesh;
-	for(i=0; i<mesh->mods.num; i++) {
-		log_assert(fptr_whitelist_mod_clear(mesh->mods.mod[i]->clear));
-		(*mesh->mods.mod[i]->clear)(&mstate->s, i);
+	for(i=0; i<mesh->num_modules; i++) {
+		log_assert(fptr_whitelist_mod_clear(mesh->modfunc[i]->clear));
+		(*mesh->modfunc[i]->clear)(&mstate->s, i);
 		mstate->s.minfo[i] = NULL;
 		mstate->s.ext_state[i] = module_finished;
 	}
@@ -317,12 +273,11 @@ mesh_state_delete(struct module_qstate* qstate)
 	mstate = qstate->mesh_info;
 	mesh = mstate->s.env->mesh;
 	mesh_detach_subs(&mstate->s);
-	if(!mstate->reply_list && !mstate->cb_list
-		&& mstate->super_set.count == 0) {
+	if(!mstate->reply_list && mstate->super_set.count == 0) {
 		log_assert(mesh->num_detached_states > 0);
 		mesh->num_detached_states--;
 	}
-	if(mstate->reply_list || mstate->cb_list) {
+	if(mstate->reply_list) {
 		log_assert(mesh->num_reply_states > 0);
 		mesh->num_reply_states--;
 	}
@@ -346,8 +301,7 @@ void mesh_detach_subs(struct module_qstate* qstate)
 	RBTREE_FOR(ref, struct mesh_state_ref*, &qstate->mesh_info->sub_set) {
 		n = rbtree_delete(&ref->s->super_set, &lookup);
 		log_assert(n != NULL); /* must have been present */
-		if(!ref->s->reply_list && !ref->s->cb_list
-			&& ref->s->super_set.count == 0) {
+		if(!ref->s->reply_list && ref->s->super_set.count == 0) {
 			mesh->num_detached_states++;
 			log_assert(mesh->num_detached_states + 
 				mesh->num_reply_states <= mesh->all.count);
@@ -382,7 +336,7 @@ int mesh_attach_sub(struct module_qstate* qstate, struct query_info* qinfo,
 		*newq = NULL;
 	if(!mesh_state_attachment(qstate->mesh_info, sub))
 		return 0;
-	if(!sub->reply_list && !sub->cb_list && sub->super_set.count == 1) {
+	if(!sub->reply_list && sub->super_set.count == 1) {
 		/* it used to be detached, before this one got added */
 		log_assert(mesh->num_detached_states > 0);
 		mesh->num_detached_states--;
@@ -462,49 +416,6 @@ timeval_divide(struct timeval* avg, struct timeval* sum, size_t d)
 }
 
 /**
- * callback results to mesh cb entry
- * @param m: mesh state to send it for.
- * @param rcode: if not 0, error code.
- * @param rep: reply to send (or NULL if rcode is set).
- * @param r: callback entry
- */
-static void
-mesh_do_callback(struct mesh_state* m, int rcode, struct reply_info* rep,
-	struct mesh_cb* r)
-{
-	int secure;
-	/* bogus messages are not made into servfail, sec_status passed 
-	 * to the callback function */
-	if(rep && rep->security == sec_status_secure)
-		secure = 1;
-	else	secure = 0;
-	if(!rep && rcode == LDNS_RCODE_NOERROR)
-		rcode = LDNS_RCODE_SERVFAIL;
-	/* send the reply */
-	if(rcode) {
-		(*r->cb)(r->cb_arg, rcode, r->buf, sec_status_unchecked);
-	} else {
-		size_t udp_size = r->edns.udp_size;
-		ldns_buffer_clear(r->buf);
-		r->edns.edns_version = EDNS_ADVERTISED_VERSION;
-		r->edns.udp_size = EDNS_ADVERTISED_SIZE;
-		r->edns.ext_rcode = 0;
-		r->edns.bits &= EDNS_DO;
-		if(!reply_info_answer_encode(&m->s.qinfo, rep, r->qid, 
-			r->qflags, r->buf, 0, 1, 
-			m->s.env->scratch, udp_size, &r->edns, 
-			(int)(r->edns.bits & EDNS_DO), secure)) 
-		{
-			(*r->cb)(r->cb_arg, LDNS_RCODE_SERVFAIL, r->buf,
-				sec_status_unchecked);
-		}
-		else	(*r->cb)(r->cb_arg, LDNS_RCODE_NOERROR, r->buf,
-				rep->security);
-	}
-	m->s.env->mesh->num_reply_addrs--;
-}
-
-/**
  * Send reply to mesh reply entry
  * @param m: mesh state to send it for.
  * @param rcode: if not 0, error code.
@@ -525,8 +436,6 @@ mesh_send_reply(struct mesh_state* m, int rcode, struct reply_info* rep,
 	if(rep && rep->security == sec_status_secure)
 		secure = 1;
 	else	secure = 0;
-	if(!rep && rcode == LDNS_RCODE_NOERROR)
-		rcode = LDNS_RCODE_SERVFAIL;
 	/* send the reply */
 	if(rcode) {
 		error_encode(r->query_reply.c->buffer, rcode, &m->s.qinfo,
@@ -568,14 +477,10 @@ mesh_send_reply(struct mesh_state* m, int rcode, struct reply_info* rep,
 void mesh_query_done(struct mesh_state* mstate)
 {
 	struct mesh_reply* r;
-	struct mesh_cb* c;
 	struct reply_info* rep = (mstate->s.return_msg?
 		mstate->s.return_msg->rep:NULL);
 	for(r = mstate->reply_list; r; r = r->next) {
 		mesh_send_reply(mstate, mstate->s.return_rcode, rep, r);
-	}
-	for(c = mstate->cb_list; c; c = c->next) {
-		mesh_do_callback(mstate, mstate->s.return_rcode, rep, c);
 	}
 }
 
@@ -588,8 +493,8 @@ void mesh_walk_supers(struct mesh_area* mesh, struct mesh_state* mstate)
 		(void)rbtree_insert(&mesh->run, &ref->s->run_node);
 		/* callback the function to inform super of result */
 		log_assert(fptr_whitelist_mod_inform_super(
-			mesh->mods.mod[ref->s->s.curmod]->inform_super));
-		(*mesh->mods.mod[ref->s->s.curmod]->inform_super)(&mstate->s, 
+			mesh->modfunc[ref->s->s.curmod]->inform_super));
+		(*mesh->modfunc[ref->s->s.curmod]->inform_super)(&mstate->s, 
 			ref->s->s.curmod, &ref->s->s);
 	}
 }
@@ -607,26 +512,6 @@ struct mesh_state* mesh_area_find(struct mesh_area* mesh,
 	
 	result = (struct mesh_state*)rbtree_search(&mesh->all, &key);
 	return result;
-}
-
-int mesh_state_add_cb(struct mesh_state* s, struct edns_data* edns,
-        ldns_buffer* buf, mesh_cb_func_t cb, void* cb_arg,
-	uint16_t qid, uint16_t qflags)
-{
-	struct mesh_cb* r = regional_alloc(s->s.region, 
-		sizeof(struct mesh_cb));
-	if(!r)
-		return 0;
-	r->buf = buf;
-	r->cb = cb;
-	r->cb_arg = cb_arg;
-	r->edns = *edns;
-	r->qid = qid;
-	r->qflags = qflags;
-	r->next = s->cb_list;
-	s->cb_list = r;
-	return 1;
-
 }
 
 int mesh_state_add_reply(struct mesh_state* s, struct edns_data* edns,
@@ -680,7 +565,7 @@ mesh_continue(struct mesh_area* mesh, struct mesh_state* mstate,
 	if(s == module_wait_module) {
 		/* start next module */
 		mstate->s.curmod++;
-		if(mesh->mods.num == mstate->s.curmod) {
+		if(mesh->num_modules == mstate->s.curmod) {
 			log_err("Cannot pass to next module; at last module");
 			log_query_info(VERB_DETAIL, "pass error for qstate",
 				&mstate->s.qinfo);
@@ -717,8 +602,8 @@ void mesh_run(struct mesh_area* mesh, struct mesh_state* mstate,
 	while(mstate) {
 		/* run the module */
 		log_assert(fptr_whitelist_mod_operate(
-			mesh->mods.mod[mstate->s.curmod]->operate));
-		(*mesh->mods.mod[mstate->s.curmod]->operate)
+			mesh->modfunc[mstate->s.curmod]->operate));
+		(*mesh->modfunc[mstate->s.curmod]->operate)
 			(&mstate->s, ev, mstate->s.curmod, e);
 
 		/* examine results */
@@ -726,7 +611,7 @@ void mesh_run(struct mesh_area* mesh, struct mesh_state* mstate,
 		regional_free_all(mstate->s.env->scratch);
 		s = mstate->s.ext_state[mstate->s.curmod];
 		verbose(VERB_ALGO, "mesh_run: %s module exit state is %s", 
-			mesh->mods.mod[mstate->s.curmod]->name, strextstate(s));
+			mesh->modfunc[mstate->s.curmod]->name, strextstate(s));
 		e = NULL;
 		if(mesh_continue(mesh, mstate, s, &ev))
 			continue;
@@ -752,15 +637,13 @@ mesh_log_list(struct mesh_area* mesh)
 	struct mesh_state* m;
 	int num = 0;
 	RBTREE_FOR(m, struct mesh_state*, &mesh->all) {
-		snprintf(buf, sizeof(buf), "%d%s%s%s%s%s mod%d %s%s", 
+		snprintf(buf, sizeof(buf), "%d%s%s%s%s%s mod%d %s", 
 			num++, (m->s.is_priming)?"p":"",  /* prime */
 			(m->s.query_flags&BIT_RD)?"RD":"",
 			(m->s.query_flags&BIT_CD)?"CD":"",
 			(m->super_set.count==0)?"d":"", /* detached */
 			(m->sub_set.count!=0)?"c":"",  /* children */
-			m->s.curmod, (m->reply_list)?"rep":"", /*hasreply*/
-			(m->cb_list)?"cb":"" /* callbacks */
-			); 
+			m->s.curmod, (m->reply_list)?"hr":"nr"); /*hasreply*/
 		log_query_info(VERB_ALGO, buf, &m->s.qinfo);
 	}
 }

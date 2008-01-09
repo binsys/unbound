@@ -50,7 +50,6 @@
 #include "util/regional.h"
 #include "iterator/iterator.h"
 #include "validator/validator.h"
-#include "services/localzone.h"
 #include <pwd.h>
 
 /** Give checkconf usage, and exit (1). */
@@ -93,8 +92,6 @@ morechecks(struct config_file* cfg)
 	int i;
 	struct sockaddr_storage a;
 	socklen_t alen;
-	struct config_str2list* acl;
-	struct local_zones* zs;
 	for(i=0; i<cfg->num_ifs; i++) {
 		if(!ipstrtoaddr(cfg->ifs[i], UNBOUND_DNS_PORT, &a, &alen)) {
 			fatal_exit("cannot parse interface specified as '%s'",
@@ -106,13 +103,6 @@ morechecks(struct config_file* cfg)
 			&a, &alen)) {
 			fatal_exit("cannot parse outgoing-interface "
 				"specified as '%s'", cfg->out_ifs[i]);
-		}
-	}
-	for(acl=cfg->acls; acl; acl = acl->next) {
-		if(!netblockstrtoaddr(acl->str, UNBOUND_DNS_PORT, &a, &alen, 
-			&i)) {
-			fatal_exit("cannot parse access control address %s %s",
-				acl->str, acl->str2);
 		}
 	}
 
@@ -142,22 +132,16 @@ morechecks(struct config_file* cfg)
 	
 	if(strcmp(cfg->module_conf, "iterator") != 0 &&
 		strcmp(cfg->module_conf, "validator iterator") != 0) {
-		fatal_exit("module conf '%s' is not known to work",
+		fatal_exit("module conf %s is not known to work",
 			cfg->module_conf);
 	}
 
 	if(cfg->username && cfg->username[0]) {
-		if(getpwnam(cfg->username) == NULL)
+		struct passwd *pwd;
+		if((pwd = getpwnam(cfg->username)) == NULL)
 			fatal_exit("user '%s' does not exist.", cfg->username);
 		endpwent();
 	}
-
-	if(!(zs = local_zones_create()))
-		fatal_exit("out of memory");
-	if(!local_zones_apply_cfg(zs, cfg))
-		fatal_exit("failed local-zone, local-data configuration");
-	local_zones_print(zs); /* @@@ DEBUG */
-	local_zones_delete(zs);
 }
 
 /** check config file */

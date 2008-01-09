@@ -80,7 +80,7 @@ void
 iter_deinit(struct module_env* env, int id)
 {
 	struct iter_env* iter_env;
-	if(!env || !env->modinfo[id])
+	if(!env || !env->modinfo || !env->modinfo[id])
 		return;
 	iter_env = (struct iter_env*)env->modinfo[id];
 	free(iter_env->target_fetch_policy);
@@ -188,8 +188,7 @@ error_supers(struct module_qstate* qstate, int id, struct module_qstate* super)
 			/* not interested */
 			verbose(VERB_ALGO, "subq error, but not interested");
 			log_query_info(VERB_ALGO, "superq", &super->qinfo);
-			if(super_iq->dp)
-				delegpt_log(VERB_ALGO, super_iq->dp);
+			delegpt_log(VERB_ALGO, super_iq->dp);
 			log_assert(0);
 			return;
 		}
@@ -225,23 +224,6 @@ error_response(struct module_qstate* qstate, int id, int rcode)
 	return 0;
 }
 
-/** check if prepend item is duplicate item */
-static int
-prepend_is_duplicate(struct ub_packed_rrset_key** sets, size_t to,
-	struct ub_packed_rrset_key* dup)
-{
-	size_t i;
-	for(i=0; i<to; i++) {
-		if(sets[i]->rk.type == dup->rk.type &&
-			sets[i]->rk.rrset_class == dup->rk.rrset_class &&
-			sets[i]->rk.dname_len == dup->rk.dname_len &&
-			query_dname_compare(sets[i]->rk.dname, dup->rk.dname)
-			== 0)
-			return 1;
-	}
-	return 0;
-}
-
 /** prepend the prepend list in the answer and authority section of dns_msg */
 static int
 iter_prepend(struct iter_qstate* iq, struct dns_msg* msg, 
@@ -271,11 +253,6 @@ iter_prepend(struct iter_qstate* iq, struct dns_msg* msg,
 	/* AUTH section */
 	num_ns = 0;
 	for(p = iq->ns_prepend_list; p; p = p->next) {
-		if(prepend_is_duplicate(sets+msg->rep->an_numrrsets+num_an,
-			num_ns, p->rrset) || prepend_is_duplicate(
-			msg->rep->rrsets+msg->rep->an_numrrsets, 
-			msg->rep->ns_numrrsets, p->rrset))
-			continue;
 		sets[msg->rep->an_numrrsets + num_an + num_ns++] = p->rrset;
 	}
 	memcpy(sets + num_an + msg->rep->an_numrrsets + num_ns, 
@@ -792,7 +769,7 @@ processInitRequest(struct module_qstate* qstate, struct iter_qstate* iq,
 		if(iter_dp_is_useless(qstate, iq->dp)) {
 			if(dname_is_root(iq->dp->name)) {
 				/* use safety belt */
-				verbose(VERB_DETAIL, "Cache has root NS but "
+				verbose(VERB_OPS, "Priming problem: NS but "
 				"no addresses. Fallback to the safety belt.");
 				iq->dp = hints_lookup_root(ie->hints, 
 					iq->qchase.qclass);
@@ -1174,9 +1151,8 @@ processQueryTargets(struct module_qstate* qstate, struct iter_qstate* iq,
 		iq->chase_flags, EDNS_DO|BIT_CD, 
 		&target->addr, target->addrlen, qstate);
 	if(!outq) {
-		verbose(VERB_OPS, "error sending query to auth server; "
-			"skip this address");
-		log_addr(VERB_OPS, "error for address:", 
+		log_err("error sending query to auth server; skip this address");
+		log_addr(0, "error for address:", 
 			&target->addr, target->addrlen);
 		return next_state(iq, QUERYTARGETS_STATE);
 	}
@@ -1764,11 +1740,11 @@ iter_operate(struct module_qstate* qstate, enum module_ev event, int id,
 		process_request(qstate, iq, ie, id);
 		return;
 	}
-	if(iq && event == module_event_pass) {
+	if(event == module_event_pass) {
 		iter_handle(qstate, iq, ie, id);
 		return;
 	}
-	if(iq && outbound) {
+	if(outbound) {
 		process_response(qstate, iq, ie, id, outbound, event);
 		return;
 	}

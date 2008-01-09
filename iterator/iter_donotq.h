@@ -54,7 +54,7 @@ struct iter_donotq {
 	/** regional for allocation */
 	struct regional* region;
 	/** 
-	 * Tree of the address spans that are blocked.
+	 * Tree of the single addresses that are blocked.
 	 * contents of type iter_donotq_addr.
 	 */
 	rbtree_t* tree;
@@ -62,10 +62,10 @@ struct iter_donotq {
 
 /**
  * Iterator donotquery address.
- * An address span that must not be used to send queries to.
+ * A single address that must not be used to send queries to.
  */
 struct iter_donotq_addr {
-	/** redblacktree node, key is this structure: addr and addrlen, net */
+	/** redblacktree node, key is this structure: addr and addrlen */
 	rbnode_t node;
 	/** address */
 	struct sockaddr_storage addr;

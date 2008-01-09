@@ -168,7 +168,7 @@ comm_point_send_udp_msg(struct comm_point *c, ldns_buffer* packet,
 		ldns_buffer_remaining(packet), 0,
 		addr, addrlen);
 	if(sent == -1) {
-		verbose(VERB_OPS, "sendto failed: %s", strerror(errno));
+		log_err("sendto failed: %s", strerror(errno));
 		return 0;
 	} else if((size_t)sent != ldns_buffer_remaining(packet)) {
 		log_err("sent %d in place of %d bytes", 
@@ -229,23 +229,18 @@ void
 comm_point_tcp_accept_callback(int fd, short event, void* arg)
 {
 	struct comm_point* c = (struct comm_point*)arg, *c_hdl;
+	struct comm_reply rep;
 	int new_fd;
 	log_assert(c->type == comm_tcp_accept);
 	if(!(event & EV_READ)) {
 		log_info("ignoring tcp accept event %d", (int)event);
 		return;
 	}
-	/* find free tcp handler. */
-	if(!c->tcp_free) {
-		log_warn("accepted too many tcp, connections full");
-		return;
-	}
 	/* accept incoming connection. */
-	c_hdl = c->tcp_free;
-	c_hdl->repinfo.addrlen = (socklen_t)sizeof(c_hdl->repinfo.addr);
+	rep.c = NULL;
+	rep.addrlen = (socklen_t)sizeof(rep.addr);
 	log_assert(fd != -1);
-	new_fd = accept(fd, (struct sockaddr*)&c_hdl->repinfo.addr, 
-		&c_hdl->repinfo.addrlen);
+	new_fd = accept(fd, (struct sockaddr*)&rep.addr, &rep.addrlen);
 	if(new_fd == -1) {
 		/* EINTR is signal interrupt. others are closed connection. */
 		if(	errno != EINTR 
@@ -259,7 +254,14 @@ comm_point_tcp_accept_callback(int fd, short event, void* arg)
 		log_err("accept failed: %s", strerror(errno));
 		return;
 	}
-	/* grab the tcp handler buffers */
+	/* find free tcp handler. */
+	if(!c->tcp_free) {
+		log_err("accepted too many tcp, connections full");
+		close(new_fd);
+		return;
+	}
+	/* grab it */
+	c_hdl = c->tcp_free;
 	c->tcp_free = c_hdl->tcp_free;
 	if(!c->tcp_free) {
 		/* stop accepting incoming queries for now. */
@@ -305,6 +307,7 @@ tcp_callback_writer(struct comm_point* c)
 static void
 tcp_callback_reader(struct comm_point* c)
 {
+	struct comm_reply rep;
 	log_assert(c->type == comm_tcp || c->type == comm_local);
 	ldns_buffer_flip(c->buffer);
 	if(c->tcp_do_toggle_rw)
@@ -312,8 +315,10 @@ tcp_callback_reader(struct comm_point* c)
 	c->tcp_byte_count = 0;
 	if(c->type == comm_tcp)
 		comm_point_stop_listening(c);
+	rep.c = c;
+	rep.addrlen = 0;
 	log_assert(fptr_whitelist_comm_point(c->callback));
-	if( (*c->callback)(c, c->cb_arg, NETEVENT_NOERROR, &c->repinfo) ) {
+	if( (*c->callback)(c, c->cb_arg, NETEVENT_NOERROR, &rep) ) {
 		comm_point_start_listening(c, -1, TCP_QUERY_TIMEOUT);
 	}
 }
@@ -603,7 +608,6 @@ comm_point_create_tcp_handler(struct comm_base *base,
 	c->do_not_close = 0;
 	c->tcp_do_toggle_rw = 1;
 	c->tcp_check_nb_connect = 0;
-	c->repinfo.c = c;
 	c->callback = callback;
 	c->cb_arg = callback_arg;
 	/* add to parent free list */
@@ -720,7 +724,6 @@ comm_point_create_tcp_out(struct comm_base *base, size_t bufsize,
 	c->do_not_close = 0;
 	c->tcp_do_toggle_rw = 1;
 	c->tcp_check_nb_connect = 1;
-	c->repinfo.c = c;
 	c->callback = callback;
 	c->cb_arg = callback_arg;
 	evbits = EV_PERSIST | EV_WRITE;
@@ -1024,8 +1027,7 @@ comm_timer_set(struct comm_timer* timer, struct timeval* tv)
 	log_assert(tv);
 	if(timer->ev_timer->enabled)
 		comm_timer_disable(timer);
-	if(evtimer_add(&timer->ev_timer->ev, tv) != 0)
-		log_err("comm_timer_set: evtimer_add failed.");
+	evtimer_add(&timer->ev_timer->ev, tv);
 	timer->ev_timer->enabled = 1;
 }
 
