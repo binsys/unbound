@@ -1,0 +1,319 @@
+# Copyright 2007 NLnet Labs
+# See the file LICENSE for the license
+
+debug_enabled=@debug_enabled@
+ifeq ($(debug_enabled),yes)
+  QUIET=yes
+else
+  QUIET=no
+endif
+
+ifeq "$(QUIET)" "yes"
+  Q=@
+  INFO=@echo
+else
+  Q=
+  INFO=@:
+endif
+
+SHELL=@SHELL@
+VERSION=@PACKAGE_VERSION@
+srcdir=@srcdir@
+prefix=@prefix@
+exec_prefix=@exec_prefix@
+bindir=@bindir@
+sbindir=@sbindir@
+mandir=@mandir@
+libdir=@libdir@
+# datarootdir is here to please some checkers, use datadir.
+datarootdir=@datarootdir@
+datadir=@datadir@
+includedir=@includedir@
+doxygen=@doxygen@
+libtool=@libtool@
+ldnsdir=@ldnsdir@
+staticexe=@staticexe@
+configfile=@ub_conf_file@
+
+YACC=@YACC@
+LEX=@LEX@
+CC=@CC@
+CPPFLAGS=-I$(srcdir) -I. @CPPFLAGS@ @DEFS@
+CFLAGS=@CFLAGS@
+LDFLAGS=@LDFLAGS@
+LIBS=@LIBS@
+LIBOBJS=@LIBOBJS@
+RUNTIME_PATH=@RUNTIME_PATH@
+DATE=$(shell date +%Y%m%d)
+LIBTOOL=$(libtool)
+ifeq "$(QUIET)" "yes"
+  LIBTOOL+=--quiet
+endif
+BUILD=build/
+
+LINT=splint
+LINTFLAGS=+quiet -weak -warnposix -unrecog -Din_addr_t=uint32_t -Du_int=unsigned -Du_char=uint8_t -preproc -Drlimit=rlimit64 -D__gnuc_va_list=va_list
+# compat with openssl linux edition.
+LINTFLAGS+="-DBN_ULONG=unsigned long" -Dkrb5_int32=int "-Dkrb5_ui_4=unsigned int" -DPQ_64BIT=uint64_t -DRC4_INT=unsigned
+
+INSTALL=$(srcdir)/install-sh
+
+COMMON_SRC=$(patsubst $(srcdir)/%,%, $(wildcard $(srcdir)/services/*.c \
+	$(srcdir)/services/cache/*.c $(srcdir)/util/*.c \
+	$(srcdir)/util/data/*.c $(srcdir)/util/storage/*.c \
+	$(srcdir)/iterator/*.c $(srcdir)/validator/*.c)) \
+	util/configparser.c util/configlexer.c testcode/checklocks.c
+COMMON_OBJ=$(addprefix $(BUILD),$(COMMON_SRC:.c=.o))
+COMPAT_OBJ=$(addprefix $(BUILD)compat/,$(LIBOBJS))
+UNITTEST_SRC=$(patsubst $(srcdir)/%,%, \
+	$(wildcard $(srcdir)/testcode/unit*.c)) \
+	testcode/readhex.c testcode/ldns-testpkts.c smallapp/worker_cb.c \
+	$(COMMON_SRC)
+UNITTEST_OBJ=$(addprefix $(BUILD),$(UNITTEST_SRC:.c=.o)) $(COMPAT_OBJ)
+DAEMON_SRC=$(patsubst $(srcdir)/%,%, $(wildcard $(srcdir)/daemon/*.c)) \
+	$(COMMON_SRC)
+DAEMON_OBJ=$(addprefix $(BUILD),$(DAEMON_SRC:.c=.o)) $(COMPAT_OBJ)
+CHECKCONF_SRC=smallapp/unbound-checkconf.c smallapp/worker_cb.c $(COMMON_SRC)
+CHECKCONF_OBJ=$(addprefix $(BUILD),$(CHECKCONF_SRC:.c=.o)) $(COMPAT_OBJ)
+HOST_SRC=smallapp/unbound-host.c
+HOST_OBJ=$(addprefix $(BUILD),$(HOST_SRC:.c=.o)) $(COMPAT_OBJ)
+TESTBOUND_SRC=testcode/testbound.c testcode/ldns-testpkts.c \
+	daemon/worker.c daemon/acl_list.c daemon/daemon.c daemon/stats.c \
+	testcode/replay.c testcode/fake_event.c $(filter-out util/netevent.c \
+	services/listen_dnsport.c services/outside_network.c, $(COMMON_SRC))
+TESTBOUND_OBJ=$(addprefix $(BUILD),$(TESTBOUND_SRC:.c=.o)) $(COMPAT_OBJ)
+LOCKVERIFY_SRC=testcode/lock_verify.c smallapp/worker_cb.c $(COMMON_SRC)
+LOCKVERIFY_OBJ=$(addprefix $(BUILD),$(LOCKVERIFY_SRC:.c=.o)) $(COMPAT_OBJ)
+PKTVIEW_SRC=testcode/pktview.c testcode/readhex.c smallapp/worker_cb.c \
+	$(COMMON_SRC)
+PKTVIEW_OBJ=$(addprefix $(BUILD),$(PKTVIEW_SRC:.c=.o)) $(COMPAT_OBJ)
+SIGNIT_SRC=testcode/signit.c smallapp/worker_cb.c $(COMMON_SRC)
+SIGNIT_OBJ=$(addprefix $(BUILD),$(SIGNIT_SRC:.c=.o)) $(COMPAT_OBJ)
+MEMSTATS_SRC=testcode/memstats.c smallapp/worker_cb.c $(COMMON_SRC)
+MEMSTATS_OBJ=$(addprefix $(BUILD),$(MEMSTATS_SRC:.c=.o)) $(COMPAT_OBJ)
+ASYNCLOOK_SRC=testcode/asynclook.c
+ASYNCLOOK_OBJ=$(addprefix $(BUILD),$(ASYNCLOOK_SRC:.c=.o)) $(COMPAT_OBJ)
+STREAMTCP_SRC=testcode/streamtcp.c smallapp/worker_cb.c $(COMMON_SRC)
+STREAMTCP_OBJ=$(addprefix $(BUILD),$(STREAMTCP_SRC:.c=.o)) $(COMPAT_OBJ)
+PERF_SRC=testcode/perf.c smallapp/worker_cb.c $(COMMON_SRC)
+PERF_OBJ=$(addprefix $(BUILD),$(PERF_SRC:.c=.o)) $(COMPAT_OBJ)
+DELAYER_SRC=testcode/delayer.c smallapp/worker_cb.c $(COMMON_SRC)
+DELAYER_OBJ=$(addprefix $(BUILD),$(DELAYER_SRC:.c=.o)) $(COMPAT_OBJ)
+HARVEST_SRC=testcode/harvest.c
+HARVEST_OBJ=$(addprefix $(BUILD),$(HARVEST_SRC:.c=.o)) $(COMPAT_OBJ)
+LIBUNBOUND_SRC=$(patsubst $(srcdir)/%,%, \
+	$(wildcard $(srcdir)/libunbound/*.c) $(COMMON_SRC))
+LIBUNBOUND_OBJ=$(addprefix $(BUILD),$(LIBUNBOUND_SRC:.c=.o)) $(COMPAT_OBJ)
+ALL_SRC=$(sort $(COMMON_SRC) $(UNITTEST_SRC) $(DAEMON_SRC) \
+	$(TESTBOUND_SRC) $(LOCKVERIFY_SRC) $(PKTVIEW_SRC) $(SIGNIT_SRC) \
+	$(MEMSTATS_SRC) $(CHECKCONF_SRC) $(LIBUNBOUND_SRC) $(HOST_SRC) \
+	$(ASYNCLOOK_SRC) $(STREAMTCP_SRC) $(PERF_SRC) $(DELAYER_SRC) \
+	$(HARVEST_SRC) )
+ALL_OBJ=$(addprefix $(BUILD),$(ALL_SRC:.c=.o) \
+	$(addprefix compat/,$(LIBOBJS))) $(COMPAT_OBJ)
+
+COMPILE=$(LIBTOOL) --tag=CC --mode=compile $(CC) $(CPPFLAGS) $(CFLAGS)
+LINK=$(LIBTOOL) --tag=CC --mode=link $(CC) $(staticexe) $(RUNTIME_PATH) $(CFLAGS) $(LDFLAGS)
+LINK_LIB=$(LIBTOOL) --tag=CC --mode=link $(CC) $(RUNTIME_PATH) $(CFLAGS) $(LDFLAGS) $(staticexe) -version-number @LIBUNBOUND_CURRENT@:@LIBUNBOUND_REVISION@:@LIBUNBOUND_AGE@ -no-undefined
+
+.PHONY:	clean realclean doc lint all install uninstall tests test download_ldns strip lib
+
+$(BUILD)%.o:    $(srcdir)/%.c 
+	$(INFO) Build $<
+	@if test ! -z "$(ldnsdir)" -a ! -e $(ldnsdir)/include/ldns/ldns.h; \
+		then (cd $(ldnsdir); $(MAKE) copy-headers); fi
+	@-if test ! -d $(dir $@); then $(INSTALL) -d $(patsubst %/,%,$(dir $@)); fi
+	$Q$(COMPILE) -c $< -o $@
+
+all:	$(COMMON_OBJ) unbound unbound-checkconf lib unbound-host
+
+tests:	all unittest testbound lock-verify pktview signit memstats \
+	asynclook streamtcp perf delayer harvest
+
+test:	tests
+	bash testcode/do-tests.sh
+
+lib:	libunbound.la
+
+libunbound.la:	$(LIBUNBOUND_OBJ)
+	$(INFO) Link $@
+	$Q$(LINK_LIB) --export-symbols $(srcdir)/libunbound/ubsyms.def -o $@ $(sort $(LIBUNBOUND_OBJ:.o=.lo)) -rpath $(libdir) $(LIBS)
+
+ifeq ($(patsubst ldns-src%,ldns-src,$(ldnsdir)),ldns-src)
+ldnslib=$(ldnsdir)/lib/libldns.a
+$(ldnslib):
+	@if test ! -z "$(ldnsdir)"; \
+	then (cd $(ldnsdir) && $(MAKE)); fi
+else
+ldnslib=
+endif
+
+unbound:	$(DAEMON_OBJ) $(ldnslib)
+	$(INFO) Link $@
+	$Q$(LINK) -o $@ $(sort $(DAEMON_OBJ)) $(LIBS)
+
+unbound-checkconf:	$(CHECKCONF_OBJ) $(ldnslib)
+	$(INFO) Link $@
+	$Q$(LINK) -o $@ $(sort $(CHECKCONF_OBJ)) $(LIBS)
+
+unbound-host:	$(HOST_OBJ) libunbound.la $(ldnslib)
+	$(INFO) Link $@
+	$Q$(LINK) -o $@ $(sort $(HOST_OBJ)) -L. -L.libs -lunbound $(LIBS)
+
+unittest:	$(UNITTEST_OBJ) $(ldnslib)
+	$(INFO) Link $@
+	$Q$(LINK) -o $@ $(sort $(UNITTEST_OBJ)) $(LIBS)
+
+testbound:	$(TESTBOUND_OBJ) $(ldnslib)
+	$(INFO) Link $@
+	$Q$(LINK) -o $@ $(sort $(TESTBOUND_OBJ)) $(LIBS)
+
+lock-verify:	$(LOCKVERIFY_OBJ) $(ldnslib)
+	$(INFO) Link $@
+	$Q$(LINK) -o $@ $(sort $(LOCKVERIFY_OBJ)) $(LIBS)
+
+pktview:	$(PKTVIEW_OBJ) $(ldnslib)
+	$(INFO) Link $@
+	$Q$(LINK) -o $@ $(sort $(PKTVIEW_OBJ)) $(LIBS)
+
+signit:	$(SIGNIT_OBJ) $(ldnslib)
+	$(INFO) Link $@
+	$Q$(LINK) -o $@ $(sort $(SIGNIT_OBJ)) $(LIBS)
+
+memstats:	$(MEMSTATS_OBJ) $(ldnslib)
+	$(INFO) Link $@
+	$Q$(LINK) -o $@ $(sort $(MEMSTATS_OBJ)) $(LIBS)
+
+asynclook:	$(ASYNCLOOK_OBJ) $(ldnslib) libunbound.la
+	$(INFO) Link $@
+	$Q$(LINK) -o $@ $(sort $(ASYNCLOOK_OBJ)) $(LIBS) -L. -L.libs -lunbound
+
+streamtcp:	$(STREAMTCP_OBJ) $(ldnslib)
+	$(INFO) Link $@
+	$Q$(LINK) -o $@ $(sort $(STREAMTCP_OBJ)) $(LIBS)
+
+perf:	$(PERF_OBJ) $(ldnslib)
+	$(INFO) Link $@
+	$Q$(LINK) -o $@ $(sort $(PERF_OBJ)) $(LIBS)
+
+delayer:	$(DELAYER_OBJ) $(ldnslib)
+	$(INFO) Link $@
+	$Q$(LINK) -o $@ $(sort $(DELAYER_OBJ)) $(LIBS)
+
+harvest:	$(HARVEST_OBJ) $(ldnslib) libunbound.la
+	$(INFO) Link $@
+	$Q$(LINK) -o $@ $(sort $(HARVEST_OBJ)) $(LIBS) -L. -L.libs -lunbound
+
+#testcode/ldns-testpkts.c:	$(ldnsdir)/examples/ldns-testpkts.c \
+#			$(ldnsdir)/examples/ldns-testpkts.h
+#	cp $(ldnsdir)/examples/ldns-testpkts.c testcode/ldns-testpkts.c
+#	cp $(ldnsdir)/examples/ldns-testpkts.h testcode/ldns-testpkts.h
+
+util/config_file.c:	util/configparser.h
+util/configlexer.c:  $(srcdir)/util/configlexer.lex util/configparser.h
+	$(INFO) Lex $<
+ifeq "$(strip $(LEX))" ":"
+	$Qecho "rebuild lexer, but no lex program, skipped"
+else
+	@-if test ! -d util; then $(INSTALL) -d util; fi
+	$Qecho "#include \"util/configyyrename.h\"" > $@
+	$Q$(LEX) -t $< >> $@
+endif
+
+util/configparser.c util/configparser.h:  $(srcdir)/util/configparser.y
+	$(INFO) Yacc $<
+	@-if test ! -d util; then $(INSTALL) -d util; fi
+	$Q$(YACC) -d -o util/configparser.c $<
+
+clean:
+	rm -f *.o *.d *.lo *~ tags
+	rm -f unbound unbound-checkconf unbound-host
+	rm -rf autom4te.cache .libs build doc/html
+
+realclean: clean
+	rm -f config.status config.log config.h.in config.h
+	rm -f configure config.sub config.guess ltmain.sh aclocal.m4 libtool
+	rm -f util/configlexer.c util/configparser.c util/configparser.h
+	if test -d ldns-src; then rm -rf ldns-src; fi
+	rm -f Makefile 
+
+$(BUILD)%.lint:    $(srcdir)/%.c 
+	$(INFO) Lint $<
+	@-if test ! -d $(dir $@); then $(INSTALL) -d $(patsubst %/,%,$(dir $@)); fi
+	$Q$(LINT) $(LINTFLAGS) -I. -I$(srcdir) -I$(ldnsdir)/include $<
+	$Qtouch $@
+
+lint:	$(addprefix $(BUILD),$(filter-out util/configparser.lint,$(filter-out util/configlexer.lint,$(sort $(ALL_SRC:.c=.lint)))))
+
+tags:	$(srcdir)/*.[ch] $(srcdir)/*/*.[ch]
+	ctags  -f $(srcdir)/tags $(srcdir)/*.[ch] $(srcdir)/*/*.[ch]
+
+doc:
+	if test -n "$(doxygen)"; then \
+		$(doxygen) $(srcdir)/doc/unbound.doxygen; fi
+
+strip:
+	strip unbound
+	strip unbound-checkconf
+	strip unbound-host
+
+install:
+	$(INSTALL) -m 755 -d $(DESTDIR)$(sbindir)
+	$(INSTALL) -m 755 -d $(DESTDIR)$(mandir)
+	$(INSTALL) -m 755 -d $(DESTDIR)$(mandir)/man8
+	$(INSTALL) -m 755 -d $(DESTDIR)$(mandir)/man5
+	$(INSTALL) -m 755 -d $(DESTDIR)$(mandir)/man3
+	$(INSTALL) -m 755 -d $(DESTDIR)$(mandir)/man1
+	$(INSTALL) -m 755 -d $(DESTDIR)$(libdir)
+	$(INSTALL) -m 755 -d $(DESTDIR)$(includedir)
+	$(LIBTOOL) --mode=install cp unbound $(DESTDIR)$(sbindir)/unbound
+	$(LIBTOOL) --mode=install cp unbound-checkconf $(DESTDIR)$(sbindir)/unbound-checkconf
+	$(LIBTOOL) --mode=install cp unbound-host $(DESTDIR)$(sbindir)/unbound-host
+	$(INSTALL) -c -m 644 $(srcdir)/doc/unbound.8 $(DESTDIR)$(mandir)/man8
+	$(INSTALL) -c -m 644 $(srcdir)/doc/unbound-checkconf.8 $(DESTDIR)$(mandir)/man8
+	$(INSTALL) -c -m 644 $(srcdir)/doc/unbound.conf.5 $(DESTDIR)$(mandir)/man5
+	$(INSTALL) -c -m 644 $(srcdir)/doc/unbound-host.1 $(DESTDIR)$(mandir)/man1
+	$(INSTALL) -c -m 644 $(srcdir)/doc/libunbound.3 $(DESTDIR)$(mandir)/man3
+	if test ! -e $(DESTDIR)$(configfile); then $(INSTALL) -d `dirname $(DESTDIR)$(configfile)`; $(INSTALL) -c -m 644 $(srcdir)/doc/example.conf $(DESTDIR)$(configfile); fi
+	$(LIBTOOL) --mode=install cp $(srcdir)/libunbound/unbound.h $(DESTDIR)$(includedir)/unbound.h
+	$(LIBTOOL) --mode=install cp libunbound.la $(DESTDIR)$(libdir)
+	$(LIBTOOL) --mode=finish $(DESTDIR)$(libdir)
+
+uninstall:
+	rm -f -- $(DESTDIR)$(sbindir)/unbound $(DESTDIR)$(sbindir)/unbound-checkconf $(DESTDIR)$(sbindir)/unbound-host
+	rm -f -- $(DESTDIR)$(mandir)/man8/unbound.8 $(DESTDIR)$(mandir)/man8/unbound-checkconf.8 $(DESTDIR)$(mandir)/man5/unbound.conf.5
+	rm -f -- $(DESTDIR)$(mandir)/man1/unbound-host.1 $(DESTDIR)$(mandir)/man3/libunbound.3
+	rm -f -- $(DESTDIR)$(includedir)/unbound.h
+	$(LIBTOOL) --mode=uninstall rm -f $(DESTDIR)$(libdir)/libunbound.la
+	@echo
+	@echo "You still need to remove "`dirname $(DESTDIR)$(configfile)`" , $(DESTDIR)$(configfile) by hand"
+
+download_ldns:
+	svn export https://www.nlnetlabs.nl/ldns/svn/trunk/makedist.sh ldns_makedist.sh
+	./ldns_makedist.sh -s -d https://www.nlnetlabs.nl/ldns/svn/trunk
+	mv ldns-*_pre_*.tar.gz ldns-src.tar.gz
+	rm ldns-*_pre_*.tar.gz.sha1 ldns_makedist.sh
+
+iana_update:
+	curl -o port-numbers.tmp http://www.iana.org/assignments/port-numbers
+	egrep -v "Unassigned|Reserved" port-numbers.tmp | awk '{ match($$0, "[0-9]+/udp"); if (RLENGTH > 0) print substr($$0, RSTART, RLENGTH - 4) ","}' | sort -nu > portslist.tmp
+	cat portslist.tmp > util/iana_ports.inc
+	rm -f port-numbers.tmp portslist.tmp
+
+# Automatic dependencies.
+$(BUILD)%.d: $(srcdir)/%.c
+	$(INFO) Depend $<
+	@if test ! -z "$(ldnsdir)" -a ! -e $(ldnsdir)/include/ldns/ldns.h; \
+		then (cd $(ldnsdir); $(MAKE) copy-headers); fi
+	@-if test ! -d $(dir $@); then $(INSTALL) -d $(patsubst %/,%,$(dir $@)); fi
+	$Q$(SHELL) -ec '$(CC) -MM $(CPPFLAGS) $(CFLAGS) $< \
+	              | sed '\''s!\(.*\)\.o[ :]*!$(dir $@)\1.o $@ : !g'\'' > $@; \
+	              [ -s $@ ] || rm -f $@'
+
+ifneq ($(MAKECMDGOALS),clean)
+ifneq ($(MAKECMDGOALS),realclean)
+ifeq ($(debug_enabled),yes)
+-include $(addprefix $(BUILD),$(ALL_SRC:.c=.d))
+endif
+endif
+endif

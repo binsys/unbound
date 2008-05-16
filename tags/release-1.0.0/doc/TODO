@@ -1,0 +1,67 @@
+TODO items. These are interesting todo items.
+o understand synthesized DNAMEs, so those TTL=0 packets are cached properly.
+o NSEC/NSEC3 aggressive negative caching, so that updates to NSEC/NSEC3 
+  will result in proper negative responses.
+o get serverselection algorithm out of local optimum.
+  make subtargets to get rtt info for a couple of targets, like fetch-policy.
+  or send out multiple queries to multiple servers.
+o (option) where port 53 is used for send and receive, no other ports are used.
+o (option) to not send replies to clients after a timeout of (say 5 secs) has
+  passed, but keep task active for later retries by client.
+o (option) private TTL feature (always report TTL x in answers).
+o (option) pretend-dnssec-unaware, and pretend-edns-unaware modes for workshops.
+o delegpt use rbtree for ns-list, to avoid slowdown for very large NS sets.
+o (option) reprime and refresh oft used data before timeout.
+o (option) retain prime results in a overlaid roothints file.
+o (option) store primed key data in a overlaid keyhints file (sort of like drafttimers).
+o windows version, auto update feature, a query to check for the version.
+o command the server with TSIG inband. get-config, clearcache, 
+	get stats, get memstats, get ..., reload, clear one zone from cache
+o watch for spoof nearmisses. Keep counter of nearmisses and print that
+  in the stats lines, operator can determine what level is a redalert.
+o NSID rfc 5001 support.
+o timers rfc 5011 support.
+o Treat YXDOMAIN from a DNAME properly, in iterator (not throwaway), validator.
+o make timeout backoffs randomized (a couple percent random) to spread traffic.
+o inspect date on executable, then warn user in log if its more than 1 year.
+o (option) proactively prime root, stubs and trust anchors, feature.
+  early failure, faster on first query, but more traffic.
+o On Windows use CryptGenRandom() to get random seed for arc4random.
+o library add convenience functions for A, AAAA, PTR, getaddrinfo, libresolve.
+o library add function to validate input from app that is signed.
+o add dynamic-update requests (making a dynupd request) to libunbound api.
+o in an ipv6 connected only environment unbound cannot use outgoing IP6 
+  to send to ip4to6 mapped hosts, need ip4to6map of NS and disable 
+  V6ONLY socket option.
+o SIG(0) and TSIG.
+o support OPT record placement on recv anywhere in the additional section. 
+o add local-file: config with authority features.
+o (option) to make local-data answers be secure for libunbound (default=no)
+o (option) to make chroot: copy all needed files into jail (or make jail)
+	perhaps also print reminder to link /dev/random and sysloghack.
+o (option) for extended statistics. If enabled (not by default) collect print
+	rcode, uptime, spoofnearmisses, cache size, qtype, 
+	bits(RD, CD, DO, EDNS-present, AD)query, (Secure, Bogus)reply.
+	perhaps also see which slow auth servers cause >1sec values.
+	stats-file possible with key: value or key=value lines in it.
+	stats on SIGUSR1. addup stats over threads.
+o overhaul outside-network servicedquery to merge with udpwait and tcpwait,
+  to make timers in servicedquery independent of udpwait queues.
+o 0x20 fallback so it can be enabled without trouble.
+o check into rebinding ports for efficiency, configure time test.
+o DLV is considered.
+o EVP hardware crypto support.
+
+Features soon after 1.0.
+o EDNS fallback after timeout (firewall drops all edns traffic problem).
+
+For 1.x; features that have been requested during the beta test.
+o command channel for couple of tasks. Like rndc.
+  o see delegation; what servers would be used to get data for a name.
+  o force stats display; easier than parsing logfiles.
+    stats display added over threads, displayed in rddtool easy format.
+  o flush names or domains (all under a name) from the cache. Include NSes.
+    And the A, AAAA for its NSes.
+  o add/del static preload data to change the domain redirections.
+  o and maybe also start, stop, reload.
+
