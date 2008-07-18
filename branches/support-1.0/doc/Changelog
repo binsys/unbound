@@ -1,0 +1,2102 @@
+18 July 2008: Wouter
+	- branch for 1.0 support.
+
+17 July 2008: Wouter
+	- fix bug #196, compile outside source tree.
+	- fix bug #195, add --with-username=user configure option.
+	- print error and exit if started with config that requires more
+	  fds than the builtin minievent can handle.
+
+16 July 2008: Wouter
+	- made svn tag 1.0.1, trunk now 1.0.2
+	- sha256 checksums enabled in makedist.sh
+
+15 July 2008: Wouter
+	- Follow draft-ietf-dnsop-default-local-zones-06 added reverse
+	  IPv6 example prefix to AS112 default blocklist.
+	- fixup lookup of DS records by client with trustanchor for same.
+	- libunbound ub_resolve, fix handling of error condition during setup.
+	- lowered log_hex blocksize to fit through BSD syslog linesize.
+	- no useless initialisation if getpwnam not available.
+	- iana, ldns snapshot updated.
+
+3 July 2008: Wouter
+	- Matthijs fixed memory leaks in root hints file reading.
+
+26 June 2008: Wouter
+	- fixup streamtcp bounds setting for udp mode, in the test framework.
+	- contrib item for updating trust anchors.
+
+25 June 2008: Wouter
+	- fixup fwd_ancil test typos.
+	- Fix for newegg lameness : ok for qtype=A, but lame for others.
+	- fixup unit test for infra cache, test lame merging.
+	- porting to mingw, bind, listen, getsockopt and setsockopt error
+	  handling.
+
+24 June 2008: Wouter
+	- removed testcode/checklocks from production code compilation path.
+	- streamtcp can use UDP mode (connected UDP socket), for testing IPv6
+	  on windows.
+	- fwd_ancil test fails if platform support is lacking.
+
+23 June 2008: Wouter
+	- fixup minitpkg to cleanup on windows with its file locking troubles.
+	- minitpkg shows skipped tests in report.
+	- skip ipv6 tests on ipv4 only hosts (requires only ipv6 localhost not
+	  ipv6 connectivity).
+	- winsock event handler keeps track of sticky TCP events, that have
+	  not been fully handled yet. when interest in the event(s) resumes,
+	  they are sent again. When WOULDBLOCK is returned events are cleared.
+	- skip tests that need signals when testing on mingw.
+
+18 June 2008: Wouter
+	- open testbound replay files in binary mode, because fseek/ftell
+	  do not work in ascii-mode on windows. The b does nothing on unix.
+	  unittest and testbound tests work on windows (xp too).
+	- ioctlsocket prints nicer error message.
+	- fixed up some TCP porting for winsock.
+	- lack of IPv6 gives a warning, no fatal error.
+	- use WSAGetLastError() on windows instead of errno for some errors.
+
+17 June 2008: Wouter
+	- outgoing num fds 32 by default on windows ; it supports less
+	  fds for waiting on than unixes.
+	- winsock_event minievent handler for windows. (you could also
+	  attempt to link with libevent/libev ports for windows).
+	- neater crypto check and gdi32 detection.
+	- unbound.exe works to resolve and validate www.nlnetlabs.nl on vista.
+
+16 June 2008: Wouter
+	- on windows, use windows threads, mutex and thread-local-storage(Tls).
+	- detect if openssl needs gdi32.
+	- if no threading, THREADS_DISABLED is defined for use in the code.
+	- sets USE_WINSOCK if using ws2_32 on windows.
+	- wsa_strerror() function for more readable errors.
+	- WSA Startup and Cleanup called in unbound.exe.
+
+13 June 2008: Wouter
+	- port mingw32, more signal ifdefs, detect sleep, usleep, 
+	  random, srandom (used inside the tests).
+	- signed or unsigned FD_SET is cast.
+
+10 June 2008: Wouter
+	- fixup warnings compiling on eeepc xandros linux.
+
+9 June 2008: Wouter
+	- in iteration response type code
+	  * first check for SOA record (negative answer) before NS record
+	    and lameness.
+	  * check if no AA bit for non-forwarder, and thus lame zone.
+	    In response to error report by Richard Doty for mail.opusnet.com.
+	- fixup unput warning from lexer on freeBSD.
+	- bug#183. pidfile, rundir, and chroot configure options. Also the
+	  example.conf and manual pages get the configured defaults.
+	  You can use: (or accept the defaults to /usr/local/etc/unbound/)
+	  --with-conf-file=filename
+	  --with-pidfile=filename
+	  --with-run-dir=path
+	  --with-chroot-dir=path
+
+8 June 2008: Wouter
+	- if multiple CNAMEs, use the first one. Fixup akamai CNAME bug.
+	  Reported by Robert Edmonds.
+	- iana port updated.
+
+4 June 2008: Wouter
+	- updated libtool files with newer version.
+	- iana portlist updated.
+
+3 June 2008: Wouter
+	- fixup local-zone: "30.172.in-addr.arpa." nodefault, so that the
+	  trailing dot is not used during comparison.
+
+2 June 2008: Wouter
+	- Jelte fixed bugs in my absence
+	  - bug 178: fixed unportable shell usage in configure (relied on 
+	    bash shell).
+	  - bug 180: fixed buffer overflow in unbound-checkconf use of strncat.
+	  - bug 181: fixed buffer overflow in ldns (called by unbound to parse
+	    config file parts).
+	- fixes by Wouter
+	  - bug 177: fixed compilation failure on opensuse, the 
+	    --disable-static configure flag caused problems.  (Patch from 
+	    Klaus Singvogel)
+	  - bug 179: same fix as 177.
+	  - bug 185: --disable-shared not passed along to ldns included with 
+	    unbound. Fixed so that configure parameters are passed to the
+	    subdir configure script.
+	    fixed that ./libtool is used always, you can still override
+	    manually with ./configure libtool=mylibtool or set $libtool in
+	    the environment.
+	- update of the ldns tarball to current ldns svn version (fix 181).
+	- bug 184: -r option for unbound-host, read resolv.conf for 
+	  forwarder. (Note that forwarder must support DNSSEC for validation
+	  to succeed).
+
+23 May 2008: Wouter
+	- mingw32 porting.
+	  - test for sys/wait.h
+	  - WSAEWOULDBLOCK test after nonblocking TCP connect.
+	  - write_iov_buffer removed: unused and no struct iov on windows.
+	  - signed/unsigned warning fixup mini_event.
+	  - use ioctlsocket to set nonblocking I/O if fnctl is unavailable.
+	  - skip signals that are not defined
+	  - detect pwd.h.
+	  - detect getpwnam, getrlimit, setsid, sbrk, chroot.
+	  - default config has no chroot if chroot() unavailable.
+	  - if no kill() then no pidfile is read or written.
+	  - gmtime_r is replaced by nonthreadsafe alternative if unavail.
+	    used in rrsig time validation errors.
+
+22 May 2008: Wouter
+	- contrib unbound.spec from Patrick Vande Walle.
+	- fixup bug#175: call tzset before chroot to have correct timestamps
+	  in system log.
+	- do not generate lex input and lex unput functions.
+	- mingw port. replacement functions labelled _unbound.
+	- fix bug 174 - check for tcp_sigpipe that ldns-testns is installed.
+
+19 May 2008: Wouter
+	- fedora 9, check in6_pktinfo define in configure.
+	- CREDITS fixup of history.
+	- ignore ldns-1.2.2 if installed, use builtin 1.3.0-pre alternative.
+
+16 May 2008: Wouter
+	- fixup for MacOSX hosts file reading (reported by John Dickinson).
+	- created 1.0.0 svn tag.
+	- trunk version 1.0.1.
+
+14 May 2008: Wouter
+	- accepted patch from Ondrej Sury for library version libtool option.
+	- configure --disable-rpath fixes up libtool for rpath trouble.
+	  Adapted from debian package patch file.
+
+13 May 2008: Wouter
+	- Added root ipv6 addresses to builtin root hints.
+	- TODO modified for post 1.0 plans.
+	- trunk version set to 1.0.0.
+	- no unnecessary linking with librt (only when libevent/libev used).
+
+7 May 2008: Wouter
+	- fixup no-ip4 problem with error callback in outside network.
+
+25 April 2008: Wouter
+	- DESTDIR is honored by the Makefile for rpms.
+	- contrib files unbound.spec and unbound.init, builds working RPM
+	  on FC7 Linux, a chrooted caching resolver, and libunbound.
+	- iana ports update.
+
+24 April 2008: Wouter
+	- chroot checks improved. working directory relative to chroot.
+	  checks if config file path is inside chroot. Documentation on it.
+	- nicer example.conf text.
+	- created 0.11 tag.
+
+23 April 2008: Wouter
+	- parseunbound.pl contrib update from Kai Storbeck for threads.
+	- iana ports update
+
+22 April 2008: Wouter
+	- ignore SIGPIPE.
+	- unit test for SIGPIPE ignore.
+
+21 April 2008: Wouter
+	- FEATURES document.
+	- fixup reread of config file if it was given as a full path
+	  and chroot was used.
+
+16 April 2008: Wouter
+	- requirements doc, updated clean query returns.
+	- parseunbound.pl update from Kai Storbeck.
+	- sunos4 porting changes.
+
+15 April 2008: Wouter
+	- fixup default rc.d pidfile location to /usr/local/etc.
+	- iana ports updated.
+	- copyright updated in ldns-testpkts to keep same as in ldns.
+	- fixup checkconf chroot tests a bit more, chdir must be inside
+	  chroot dir.
+	- documented 'gcc: unrecognized -KPIC option' errors on Solaris.
+	- example.conf values changed to /usr/local/etc/unbound
+	- DSA test work.
+	- DSA signatures: unbound is compatible with both encodings found.
+	  It will detect and convert when necessary.
+
+14 April 2008: Wouter
+	- got update for parseunbound.pl statistics script from Kai Storbeck.
+	- tpkg tests for udp wait list.
+	- documented 0x20 status.
+	- fixup chroot and checkconf, it is much smarter now.
+	- fixup DSA EVP signature decoding. Solution that Jelte found copied.
+	- and check first sig byte for the encoding type.
+
+11 April 2008: Wouter
+	- random port selection out of the configged ports.
+	- fixup threadsafety for libevent-1.4.3+ (event_base_get_method).
+	- removed base_port.
+	- created 256-port ephemeral space for the OS, 59802 available.
+	- fixup consistency of port_if out array during heavy use.
+
+10 April 2008: Wouter
+	- --with-libevent works with latest libevent 1.4.99-trunk.
+	- added log file statistics perl script to contrib.
+	- automatic iana ports update from makefile. 60058 available.
+
+9 April 2008: Wouter
+	- configure can detect libev(from its build directory) when passed
+	  --with-libevent=/home/wouter/libev-3.2
+	  libev-3.2 is a little faster than libevent-1.4.3-stable (about 5%).
+	- unused commpoints not listed in epoll list.
+	- statistics-cumulative option so that the values are not reset.
+	- config creates array of available ports, 61841 available,
+	  it excludes <1024 and iana assigned numbers.
+	  config statements to modify the available port numbers.
+
+8 April 2008: Wouter
+	- unbound tries to set the ulimit fds when started as server.
+	  if that does not work, it will scale back its requirements.
+
+27 March 2008: Wouter
+	- documented /dev/random symlink from chrootdir as FAQ entry.
+
+26 March 2008: Wouter
+	- implemented AD bit signaling. If a query sets AD bit (but not DO)
+	  then the AD bit is set in the reply if the answer validated.
+	  Without including DNSSEC signatures. Useful if you have a trusted
+	  path from the client to the resolver. Follows dnssec-updates draft.
+
+25 March 2008: Wouter
+	- implemented check that for NXDOMAIN and NOERROR answers a query
+	  section must be present in the reply (by the scrubber). And it must
+	  be equal to the question sent, at least lowercase folded.
+	  Previously this feature happened because the cache code refused
+	  to store such messages. However blocking by the scrubber makes 
+	  sure nothing gets into the RRset cache. Also, this looks like a
+	  timeout (instead of an allocation failure) and this retries are
+	  done (which is useful in a spoofing situation).
+	- RTT banding. Band size 400 msec, this makes band around zero (fast)
+	  include unknown servers. This makes unbound explore unknown servers.
+
+7 March 2008: Wouter
+	- -C config feature for harvest program. 
+	- harvest handles CNAMEs too.
+
+5 March 2008: Wouter
+	- patch from Hugo Koji Kobayashi for iterator logs spelling.
+
+4 March 2008: Wouter
+	- From report by Jinmei Tatuya, rfc2181 trust value for remainder
+	  of a cname trust chain is lower; not full answer_AA. 
+	- test for this fix.
+	- default config file location is /usr/local/etc/unbound.
+	  Thus prefix is used to determine the location. This is also the
+	  chroot and pidfile default location.
+
+3 March 2008: Wouter
+	- Create 0.10 svn tag.
+	- 0.11 version in trunk.
+	- indentation nicer.
+
+29 February 2008: Wouter
+	- documentation update.
+	- fixup port to Solaris of perf test tool.
+	- updated ldns-tarball with decl-after-statement fixes.
+
+28 February 2008: Wouter
+	- fixed memory leaks in libunbound (during cancellation and wait).
+	- libunbound returns the answer packet in full.
+	- snprintf compat update.
+	- harvest performs lookup.
+	- ldns-tarball update with fix for ldns_dname_label.
+	- installs to sbin by default.
+	- install all manual pages (unbound-host and libunbound too).
+
+27 February 2008: Wouter
+	- option to use caps for id randomness.
+	- config file option use-caps-for-id: yes
+	- harvest debug tool
+
+26 February 2008: Wouter
+	- delay utility delays TCP as well. If the server that is forwarded 
+	  to has a TCP error, the delay utility closes the connection.
+	- delay does REUSE_ADDR, and can handle a server that closes its end.
+	- answers use casing from query.
+
+25 February 2008: Wouter
+	- delay utility works. Gets decent thoughput too (>20000).
+
+22 February 2008: Wouter
+	- +2% for recursions, if identical queries (except for destination
+	  and query ID) in the reply list, avoid re-encoding the answer.
+	- removed TODO items for optimizations that do not show up in
+	  profile reports.
+	- default is now minievent - not libevent. As its faster and
+	  not needed for regular installs, only for very large port ranges.
+	- loop check different speedup pkt-dname-reading, 1% faster for
+	  nocache-recursion check.
+	- less hashing during msg parse, 4% for recursion.
+	- small speed fix for dname_count_size_labels, +1 or +2% recursion.
+	- some speed results noted:
+	  optimization resulted in +40% for recursion (cache miss) and
+	  +70 to +80 for cache hits, and +96% for version.bind.
+	  zone nsec3 example, 100 NXDOMAIN queries, NSD 35182.8 Ub 36048.4
+	  www.nlnetlabs.nl from cache: BIND 8987.99 Ub 31218.3
+	  www with DO bit set : BIND 8269.31 Ub 28735.6 qps.
+	  So, unbound can be about equal qps to NSD in cache hits.
+	  And about 3.4x faster than BIND in cache performance.
+	- delay utility for testing.
+
+21 February 2008: Wouter
+	- speedup of root-delegation message encoding by 15%.
+	- minor speedup of compress tree_lookup, maybe 1%.
+	- speedup of dname_lab_cmp and memlowercmp - the top functions in 
+	  profiler output, maybe a couple percent when it matters.
+
+20 February 2008: Wouter
+	- setup speec_cache for need-ldns-testns in dotests.
+	- check number of queued replies on incoming queries to avoid overload
+	  on that account.
+	- fptr whitelist checks are not disabled in optimize mode.
+	- do-daemonize config file option.
+	- minievent time share initializes time at start.
+	- updated testdata for nsec3 new algorithm numbers (6, 7).
+	- small performance test of packet encoding (root delegation).
+
+19 February 2008: Wouter
+	- applied patch to unbound-host man page from Jan-Piet Mens.
+	- fix donotquery-localhost: yes default (it erroneously was switched
+	  to default 'no').
+	- time is only gotten once and the value is shared across unbound.
+	- unittest cleans up crypto, so that it has no memory leaks.
+	- mini_event shares the time value with unbound this results in 
+	  +3% speed for cache responses and +9% for recursions.
+	- ldns tarball update with new NSEC3 sign code numbers.
+	- perform several reads per UDP operation. This improves performance
+	  in DoS conditions, and costs very little in normal conditions.
+	  improves cache response +50%, and recursions +10%.
+	- modified asynclook test. because the callback from async is not
+	  in any sort of lock (and thus can use all library functions freely),
+	  this causes a tiny race condition window when the last lock is 
+	  released for a callback and a new cancel() for that callback.
+	  The only way to remove this is by putting callbacks into some 
+	  lock window. I'd rather have the small possibility of a callback
+	  for a cancelled function then no use of library functions in 
+	  callbacks. Could be possible to only outlaw process(), wait(),
+	  cancel() from callbacks, by adding another lock, but I'd rather not.
+
+18 February 2008: Wouter
+	- patch to unbound-host from Jan-Piet Mens.
+	- unbound host prints errors if fails to configure context.
+	- fixup perf to resend faster, so that long waiting requests do
+	  not hold up the queue, they become lost packets or SERVFAILs,
+	  or can be sent a little while later (i.e. processing time may 
+	  take long, but throughput has to be high).
+	- fixup iterator operating in no cache conditions (RD flag unset
+	  after a CNAME).
+	- streamlined code for RD flag setting.
+	- profiled code and changed dname compares to be faster. 
+	  The speedup is about +3% to +8% (depending on the test).
+	- minievent tests for eintr and eagain.
+
+15 February 2008: Wouter
+	- added FreeBSD rc.d script to contrib.
+	- --prefix option for configure also changes directory: pidfile:
+	  and chroot: defaults in config file.
+	- added cache speed test, for cache size OK and cache too small.
+
+14 February 2008: Wouter
+	- start without a config file (will complain, but start with
+	  defaults).
+	- perf test program works.
+
+13 February 2008: Wouter
+	- 0.9 released.
+	- 1.0 development. Printout ldns version on unbound -h.
+	- start of perf tool.
+	- bugfix to read empty lines from /etc/hosts.
+
+12 February 2008: Wouter
+	- fixup problem with configure calling itself if ldns-src tarball
+	  is not present.
+
+11 February 2008: Wouter
+	- changed library to use ub_ instead of ub_val_ as prefix.
+	- statistics output text nice.
+	- etc/hosts handling.
+	- library function to put logging to a stream.
+	- set any option interface.
+
+8 February 2008: Wouter
+	- test program for multiple queries over a TCP channel.
+	- tpkg test for stream tcp queries.
+	- unbound replies to multiple TCP queries on a TCP channel.
+	- fixup misclassification of root referral with NS in answer
+	  when validating a nonrec query.
+	- tag 0.9
+	- layout of manpages, spelling fix in header, manpages process by
+	  makedist, list asynclook and tcpstream tests as ldns-testns
+	  required.
+
+7 February 2008: Wouter
+	- moved up all current level 2 to be level 3. And 3 to 4.
+	  to make room for new debug level 2 for detailed information 
+	  for operators.
+	- verbosity level 2. Describes recursion and validation.
+	- cleaner configure script and fixes for libevent solaris.
+	- signedness for log output memory sizes in high verbosity.
+
+6 February 2008: Wouter
+	- clearer explanation of threading configure options.
+	- fixup asynclook test for nothreading (it creates only one process
+	  to do the extended test).
+	- changed name of ub_val_result_free to ub_val_resolve_free.
+	- removes warning message during library linking, renamed
+	  libunbound/unbound.c -> libunbound.c and worker to libworker.
+	- fallback without EDNS if result is NOTIMPL as well as on FORMERR.
+
+5 February 2008: Wouter
+	- statistics-interval: seconds option added.
+	- test for statistics option
+	- ignore errors making directories, these can occur in parallel builds
+	- fixup Makefile strip command and libunbound docs typo.
+
+31 January 2008: Wouter
+	- bg thread/process reads and writes the pipe nonblocking all the time
+	  so that even if the pipe is buffered or so, the bg thread does not
+	  block, and services both pipes and queries.
+
+30 January 2008: Wouter
+	- check trailing / on chrootdir in checkconf.
+	- check if root hints and anchor files are in chrootdir.
+	- no route to host tcp error is verbosity level 2. 
+	- removed unused send_reply_iov. and its configure check.
+	- added prints of 'remote address is 1.2.3.4 port 53' to errors
+	  from netevent; the basic socket errors.
+
+28 January 2008: Wouter
+	- fixup uninit use of buffer by libunbound (query id, flags) for
+	  local_zone answers.
+	- fixup uninit warning from random.c; also seems to fix sporadic
+	  sigFPE coming out of openssl.
+	- made openssl entropy warning more silent for library use. Needs
+	  verbosity 1 now.
+	- fixup forgotten locks for rbtree_searches on ctx->query tree.
+	- random generator cleanup - RND_STATE_SIZE removed, and instead
+	  a super-rnd can be passed at init to chain init random states.
+	- test also does lock checks if available.
+	- protect config access in libworker_setup().
+	- libevent doesn't like comm_base_exit outside of runloop.
+	- close fds after removing commpoints only (for epoll, kqueue).
+
+25 January 2008: Wouter
+	- added tpkg for asynclook and library use. 
+	- allows localhost to be queried when as a library.
+	- fixup race condition between cancel and answer (in case of
+	  really fast answers that beat the cancel).
+	- please doxygen, put doxygen comment in one place.
+	- asynclook -b blocking mode and test.
+	- refactor asynclook, nicer code.
+	- fixup race problems from opensll in rand init from library, with
+	  a mutex around the rand init.
+	- fix pass async_id=NULL to _async resolve().
+	- rewrote _wait() routine, so that it is threadsafe.
+	- cancelation is threadsafe.
+	- asynclook extended test in tpkg.
+	- fixed two races where forked bg process waits for (somehow shared?)
+	  locks, so does not service the query pipe on the bg side.
+	  Now those locks are only held for fg_threads and for bg_as_a_thread.
+
+24 January 2008: Wouter
+	- tested the cancel() function.
+	- asynclook -c (cancel) feature.
+	- fix fail to allocate context actions.
+	- make pipe nonblocking at start.
+	- update plane for retry mode with caution to limit bandwidth.
+	- fix Makefile for concurrent make of unbound-host.
+	- renamed ub_val_ctx_wait/poll/process/fd to ub_val*.
+	- new calls to set forwarding added to header and docs.
+
+23 January 2008: Wouter
+	- removed debug prints from if-auto, verb-algo enables some.
+	- libunbound QUIT setup, remove memory leaks, when using threads
+	  will share memory for passing results instead of writing it over
+	  the pipe, only writes ID number over the pipe (towards the handler
+	  thread that does process() ).
+
+22 January 2008: Wouter
+	- library code for async in libunbound/unbound.c.
+	- fix link testbound.
+	- fixup exit bug in mini_event.
+	- background worker query enter and result functions.
+	- bg query test application asynclook, it looks up multiple
+	  hostaddresses (A records) at the same time.
+
+21 January 2008: Wouter
+	- libworker work, netevent raw commpoints, write_msg, serialize.
+
+18 January 2008: Wouter
+	- touch up of manpage for libunbound.
+	- support for IP_RECVDSTADDR (for *BSD ip4).
+	- fix for BSD, do not use ip4to6 mapping, make two sockets, once
+	  ip6 and once ip4, uses socket options.
+	- goodbye ip4to6 mapping.
+	- update ldns-testpkts with latest version from ldns-trunk.
+	- updated makedist for relative ldns pathnames.
+	- library API with more information inside the result structure.
+	- work on background resolves.
+
+17 January 2008: Wouter
+	- fixup configure in case -lldns is installed.
+	- fixup a couple of doxygen warnings, about enum variables.
+	- interface-automatic now copies the interface address from the
+	  PKT_INFO structure as well.
+	- manual page with library API, all on one page 'man libunbound'.
+	- rewrite of PKTINFO structure, it also captures IP4 PKTINFO.
+
+16 January 2008: Wouter
+	- incoming queries to the server with TC bit on are replied FORMERR.
+	- interface-automatic replied the wrong source address on localhost
+	  queries. Seems to be due to ifnum=0 in recvmsg PKTINFO. Trying
+	  to use ifnum=-1 to mean 'no interface, use kernel route'.
+
+15 January 2008: Wouter
+	- interface-automatic feature. experimental. Nice for anycast.
+	- tpkg test for ip6 ancillary data.
+	- removed debug prints.
+	- porting experience, define for Solaris, test refined for BSD
+	  compatibility. The feature probably will not work on OpenBSD.
+	- makedist fixup for ldns-src in build-dir.
+
+14 January 2008: Wouter
+	- in no debug sets NDEBUG to remove asserts.
+	- configure --enable-debug is needed for dependency generation
+	  for assertions and for compiler warnings.
+	- ldns.tgz updated with ldns-trunk (where buffer.h is updated).
+	- fix lint, unit test in optimize mode.
+	- default access control allows ::ffff:127.0.0.1 v6mapped localhost.
+	
+11 January 2008: Wouter
+	- man page, warning removed.
+	- added text describing the use of stub zones for private zones.
+	- checkconf tests for bad hostnames (IP address), and for doubled
+	  interface lines.
+	- memory sizes can be given with 'k', 'Kb', or M or G appended.
+
+10 January 2008: Wouter
+	- typo in example.conf.
+	- made using ldns-src that is included the package more portable
+	  by linking with .lo instead of .o files in the ldns package.
+	- nicer do-ip6: yes/no documentation.
+	- nicer linking of libevent .o files.
+	- man pages render correctly on solaris.
+
+9 January 2008: Wouter
+	- fixup openssl RAND problem, when the system is not configured to
+	  give entropy, and the rng needs to be seeded.
+
+8 January 2008: Wouter
+	- print median and quartiles with extensive logging.
+
+4 January 2008: Wouter
+	- document misconfiguration in private network.
+
+2 January 2008: Wouter
+	- fixup typo in requirements.
+	- document that 'refused' is a better choice than 'drop' for 
+	  the access control list, as refused will stop retries.
+
+7 December 2007: Wouter
+	- unbound-host has a -d option to show what happens. This can help
+	  with debugging (why do I get this answer).
+	- fixup CNAME handling, on nodata, sets and display canonname.
+	- dot removed from CNAME display.
+	- respect -v for NXDOMAINs.
+	- updated ldns-src.tar.gz with ldns-trunk today (1.2.2 fixes).
+	- size_t to int for portability of the header file.
+	- fixup bogus handling.
+	- dependencies and lint for unbound-host.
+
+6 December 2007: Wouter
+	- library resolution works in foreground mode, unbound-host app
+	  receives data.
+	- unbound-host prints rdata using ldns.
+	- unbound-host accepts trust anchors, and prints validation
+	  information when you give -v.
+
+5 December 2007: Wouter
+	- locking in context_new() inside the function.
+	- setup of libworker.
+
+4 December 2007: Wouter
+	- minor Makefile fixup.
+	- moved module-stack code out of daemon/daemon into services/modstack,
+	  preparing for code-reuse.
+	- move context into own header file.
+	- context query structure.
+	- removed unused variable pwd from checkconf.
+	- removed unused assignment from outside netw.
+	- check timeval length of string.
+	- fixup error in val_utils getsigner.
+	- fixup same (*var) error in netblocktostr.
+	- fixup memleak on parse error in localzone.
+	- fixup memleak on packet parse error.
+	- put ; after union in parser.y.
+	- small hardening in iter_operate against iq==NULL.
+	- hardening, if error reply with rcode=0 (noerror) send servfail.
+	- fixup same (*var) error in find_rrset in msgparse, was harmless.
+	- check return value of evtimer_add().
+	- fixup lockorder in lruhash_reclaim(), building up a list of locked
+	  entries one at a time. Instead they are removed and unlocked.
+	- fptr_wlist for markdelfunc.
+	- removed is_locked param from lruhash delkeyfunc.
+	- moved bin_unlock during bin_split purely to please.
+
+3 December 2007: Wouter
+	- changed checkconf/ to smallapp/ to make room for more support tools.
+	  (such as unbound-host).
+	- install dirs created with -m 755 because they need to be accessible.
+	- library extensive featurelist added to TODO.
+	- please doxygen, lint.
+	- library test application, with basic functionality.
+	- fix for building in a subdirectory. 
+	- link lib fix for Leopard.
+
+30 November 2007: Wouter
+	- makefile that creates libunbound.la, basic file or libunbound.a
+	  when creating static executables (no libtool).
+	- more API setup.
+
+29 November 2007: Wouter
+	- 0.9 public API start.
+
+28 November 2007: Wouter
+	- Changeup plan for 0.8 - no complication needed, a simple solution
+	  has been chosen for authoritative features.
+	- you can use single quotes in the config file, so it is possible
+	  to specify TXT records in local data.
+	- fixup small memory problem in implicit transparent zone creation.
+	- test for implicit zone creation and multiple RR RRsets local data.
+	- local-zone nodefault test.
+	- show testbound testlist on commit.
+	- iterator normalizer changes CNAME chains ending in NXDOMAIN where
+	  the packet got rcode NXDOMAIN into rcode NOERROR. (since the initial
+	  domain exists).
+	- nicer verbosity: 0 and 1 levels.
+	- lower nonRDquery chance of eliciting wrongly typed validation
+	  requiring message from the cache.
+	- fix for nonRDquery validation typing; nodata is detected when
+	  SOA record in auth section (all validation-requiring nodata messages
+	  have a SOA record in authority, so this is OK for the validator),
+	  and NS record is needed to be a referral.
+	- duplicate checking when adding NSECs for a CNAME, and test.
+	- created svn tag 0.8, after completing testbed tests.
+
+27 November 2007: Wouter
+	- per suggestion in rfc2308, replaced default max-ttl value with 1 day.
+	- set size of msgparse lookup table to 32, from 1024, so that its size
+	  is below the 2048 regional large size threshold, and does not cause
+	  a call to malloc when a message is parsed.
+	- update of memstats tool to print number of allocation calls.
+	  This is what is taking time (not space) and indicates the avg size
+	  of the allocations as well. region_alloc stat is removed.
+
+22 November 2007: Wouter
+	- noted EDNS in-the-middle dropping trouble as a TODO.
+	  At this point theoretical, no user trouble has been reported.
+	- added all default AS112 zones.
+	- answers from local zone content.
+		* positive answer, the rrset in question
+		* nodata answer (exist, but not that type).
+		* nxdomain answer (domain does not exist).
+		* empty-nonterminal answer.
+		* But not: wildcard, nsec, referral, rrsig, cname/dname,
+			or additional section processing, NS put in auth.
+	- test for correct working of static and transparent and couple
+	  of important defaults (localhost, as112, reverses). 
+	  Also checks deny and refuse settings.
+	- fixup implicit zone generation and AA bit for NXDOMAIN on localdata.
+
+21 November 2007: Wouter
+	- local zone internal data setup.
+
+20 November 2007: Wouter
+	- 0.8 - str2list config support for double string config options.
+	- local-zone and local-data options, config storage and documentation.
+
+19 November 2007: Wouter
+	- do not downcase NSEC and RRSIG for verification. Follows 
+	  draft-ietf-dnsext-dnssec-bis-updates-06.txt.
+	- fixup leaking unbound daemons at end of tests.
+	- README file updated.
+	- nice libevent not found error.
+	- README talks about gnu make.
+	- 0.8: unit test for addr_mask and fixups for it.
+	  and unit test for addr_in_common().
+	- 0.8: access-control config file element.
+	  and unit test rpl replay file.
+	- 0.8: fixup address reporting from netevent.
+
+16 November 2007: Wouter
+	- privilege separation is not needed in unbound at this time.
+	  TODO item marked as such.
+	- created beta-0.7 branch for support.
+	- tagged 0.7 for beta release.
+	- moved trunk to 0.8 for 0.8(auth features) development.
+	- 0.8: access control list setup.
+
+15 November 2007: Wouter
+	- review fixups from Jelte.
+
+14 November 2007: Wouter
+	- testbed script does not recreate configure, since its in svn now.
+	- fixup checkconf test so that it does not test 
+	  /etc/unbound/unbound.conf.
+	- tag 0.6.
+
+13 November 2007: Wouter
+	- remove debug print.
+	- fixup testbound exit when LIBEVENT_SIGNAL_PROBLEM exists.
+
+12 November 2007: Wouter
+	- fixup signal handling where SIGTERM could be ignored if a SIGHUP
+	  arrives later on.
+	- bugreports to unbound-bugs@nlnetlabs.nl
+	- fixup testbound so it exits cleanly.
+	- cleanup the caches on a reload, so that rrsetID numbers won't clash.
+
+9 November 2007: Wouter
+	- took ldns snapshot in repo.
+	- default config file is /etc/unbound/unbound.conf.
+	  If it doesn't exist, it is installed with the doc/example.conf file.
+	  The file is not deleted on uninstall.
+	- default listening is not all, but localhost interfaces.
+	
+8 November 2007: Wouter
+	- Fixup chroot and drop user privileges.
+	- new L root ip address in default hints.
+
+1 November 2007: Wouter
+	- Fixup of crash on reload, due to anchors in env not NULLed after
+	  dealloc during deinit.
+	- Fixup of chroot call. Happens after privileges are dropped, so
+	  that checking the passwd entry still works.
+	- minor touch up of clear() hashtable function.
+	- VERB_DETAIL prints out what chdir, username, chroot is being done.
+	- when id numbers run out, caches are cleared, as in design notes.
+	  Tested with a mock setup with very few bits in id, it worked.
+	- harden-dnssec-stripped: yes is now default. It insists on dnssec
+	  data for trust anchors. Included tests for the feature.
+
+31 October 2007: Wouter
+	- cache-max-ttl config option.
+	- building outside sourcedir works again.
+	- defaults more secure:
+		username: "unbound"
+		chroot: "/etc/unbound"
+	  The operator can override them to be less secure ("") if necessary.
+	- fix horrible oversight in sorting rrset references in a message,
+	  sort per reference key pointer, not on referencepointer itself.
+	- pidfile: "/etc/unbound/unbound.pid" is now the default.
+	- tests changed to reflect the updated default.
+	- created hashtable clear() function that respects locks.
+
+30 October 2007: Wouter
+	- fixup assertion failure that relied on compressed names to be
+	  smaller than uncompressed names. A packet from comrite.com was seen
+	  to be compressed to a larger size. Added it as unit test.
+	- quieter logging at low verbosity level for common tcp messages.
+	- no greedy TTL update.
+
+23 October 2007: Wouter
+	- fixup (grand-)parent problem for dnssec-lameness detection.
+	- fixup tests to do additional section processing for lame replies,
+	  since the detection needs that.
+	- no longer trust in query section in reply during dnssec lame detect.
+	- dnssec lameness does not make the server never ever queried, but
+	  non-preferred. If no other servers exist or answer, the dnssec lame
+	  server is used; the fastest dnssec lame server is chosen.
+	- added test then when trust anchor cannot be primed (nodata), the
+	  insecure mode from unbound works.
+	- Fixup max queries per thread, any more are dropped.
+
+22 October 2007: Wouter
+	- added donotquerylocalhost config option. Can be turned off for
+	  out test cases.
+	- ISO C compat changes.
+	- detect RA-no-AA lameness, as LAME.
+	- DNSSEC-lameness detection, as LAME.
+	  See notes in requirements.txt for choices made.
+	- tests for lameness detection.
+	- added all to make test target; need unbound for fwd tests.
+	- testbound does not pollute /etc/unbound.
+
+19 October 2007: Wouter
+	- added configure (and its files) to svn, so that the trunk is easier
+	  to use. ./configure, config.guess, config.sub, ltmain.sh,
+	  and config.h.in.
+	- added yacc/lex generated files, util/configlexer.c, 
+	  util/configparser.c util/configparser.h, to svn. 
+	- without lex no attempt to use it.
+	- unsecure response validation collated into one block.
+	- remove warning about const cast of cfgfile name.
+	- outgoing-interfaces can be different from service interfaces.
+	- ldns-src configure is done during unbound configure and
+	  ldns-src make is done during unbound make, and so inherits the
+	  make arguments from the unbound make invocation.
+	- nicer error when libevent problem causes instant exit on signal.
+	- read root hints from a root hint file (like BIND does).
+	  
+18 October 2007: Wouter
+	- addresses are logged with errors.
+	- fixup testcode fake event to remove pending before callback
+	  since the callback may create new pending items.
+	- tests updated because retries are now in iterator module.
+	- ldns-testpkts code is checked for differences between unbound
+	  and ldns by makedist.sh.
+	- ldns trunk from today added in svn repo for fallback in case
+	  no ldns is installed on the system.
+	  make download_ldns refreshes the tarball with ldns svn trunk.
+	- ldns-src.tar.gz is used if no ldns is found on the system, and
+	  statically linked into unbound.
+	- start of regional allocator code.
+	- regional uses less memory and variables, simplified code.
+	- remove of region-allocator.
+	- alloc cache keeps a cache of recently released regional blocks,
+	  up to a maximum.
+	- make unit test cleanly free memory.
+
+17 October 2007: Wouter
+	- fixup another cycle detect and ns-addr timeout resolution bug.
+	  This time by refusing delegations from the cache without addresses
+	  when resolving a mandatory-glue nameserver-address for that zone.
+	  We're going to have to ask a TLD server anyway; might as well be
+	  the TLD server for this name. And this resolves a lot of cases where
+	  the other nameserver names lead to cycles or are not available.
+	- changed random generator from random(3) clone to arc4random wrapped
+	  for thread safety. The random generator is initialised with
+	  entropy from the system.
+	- fix crash where failure to prime DNSKEY tried to print null pointer
+	  in the log message.
+	- removed some debug prints, only verb_algo (4) enables them.
+	- fixup test; new random generator took new paths; such as one 
+	  where no scripted answer was available.
+	- mark insecure RRs as insecure.
+	- fixup removal of nonsecure items from the additional.
+	- reduced timeout values to more realistic, 376 msec (262 msec has
+	  90% of roundtrip times, 512 msec has 99% of roundtrip times.)
+	- server selection failover to next server after timeout (376 msec).
+
+16 October 2007: Wouter
+	- no malloc in log_hex.
+	- assertions around system calls.
+	- protect against gethostname without ending zero.
+	- ntop output is null terminated by unbound.
+	- pidfile content null termination
+	- various snprintf use sizeof(stringbuf) instead of fixed constant.
+	- changed loopdetect % 8 with & 0x7 since % can become negative for
+	  weird negative input and particular interpretation of integer math.
+	- dname_pkt_copy checks length of result, to protect result buffers.
+	  prints an error, this should not happen. Bad strings should have
+	  been rejected earlier in the program.
+	- remove a size_t underflow from msgreply size func.
+
+15 October 2007: Wouter
+	- nicer warning.
+	- fix IP6 TCP, wrong definition check. With test package.
+	- fixup the fact that the query section was not compressed to,
+	  the code was there but was called by value instead of by reference.
+	  And test for the case, uses xxd and nc.
+	- more portable ip6 check for sockaddr types.
+
+8 October 2007: Wouter
+	- --disable-rpath option in configure for 64bit systems with
+	  several dynamic lib dirs.
+
+7 October 2007: Wouter
+	- fixup tests for no AD bit in non-DO queries.
+	- test that makes sure AD bit is not set on non-DO query.
+
+6 October 2007: Wouter
+	- removed logfile open early. It did not have the proper permissions;
+	  it was opened as root instead of the user. And we cannot change user
+	  id yet, since chroot and bind ports need to be done.
+	- callback checks for event callbacks done from mini_event. Because
+	  of deletions cannot do this from netevent. This means when using
+	  libevent the protection does not work on event-callbacks.
+	- fixup too small reply (did not zero counts).
+	- fixup reply no longer AD bit when query without DO bit.
+
+5 October 2007: Wouter
+	- function pointer whitelist.
+
+4 October 2007: Wouter
+	- overwrite sensitive random seed value after use.
+	- switch to logfile very soon if not -d (console attached).
+	- error messages do not reveal the trustanchor contents.
+	- start work on function pointer whitelists.
+
+3 October 2007: Wouter
+	- fix for multiple empty nonterminals, after multiple DSes in the
+	  chain of trust.
+	- mesh checks if modules are looping, and stops them.
+	- refetch with CNAMEd nameserver address regression test added.
+	- fixup line count bug in testcode, so testbound prints correct line
+	  number with parse errors.
+	- unit test for multiple ENT case.
+	- fix for cname out of validated unsec zone.
+	- fixup nasty id=0 reuse. Also added assertions to detect its
+	  return (the assertion catches in the existing test cases).
+
+1 October 2007: Wouter
+	- skip F77, CXX, objC tests in configure step.
+	- fixup crash in refetch glue after a CNAME.
+	  and protection against similar failures (with error print).
+
+28 September 2007: Wouter
+	- test case for unbound-checkconf, fixed so it also checks the
+	  interface: statements.
+
+26 September 2007: Wouter
+	- SIGHUP will reopen the log file.
+	- Option to log to syslog.
+	- please lint, fixup tests (that went to syslog on open, oops).
+	- config check program.
+
+25 September 2007: Wouter
+	- tests for NSEC3. Fixup bitmap checks for NSEC3.
+	- positive ANY response needs to check if wildcard expansion, and
+	  check that original data did not exist.
+	- tests for NSEC3 that wrong use of OPTOUT is bad. For insecure
+	  delegation, for abuse of child zone apex nsec3.
+	- create 0.5 release tag.
+
+24 September 2007: Wouter
+	- do not make test programs by default.
+	- But 'make test' will perform all of the tests.
+	- Advertise builtin select libevent alternative when no libevent
+	  is found.
+	- signit can generate NSEC3 hashes, for generating tests.
+	- multiple nsec3 paramaters in message test.
+	- too high nsec3 iterations becomes insecure test.
+
+21 September 2007: Wouter
+	- fixup empty_DS_name allocated in wrong region (port DEC Alpha).
+	- fixup testcode lock safety (port FreeBSD).
+	- removes subscript has type char warnings (port Solaris 9).
+	- fixup of field with format type to int (port MacOS/X intel).
+	- added test for infinite loop case in nonRD answer validation.
+	  It was a more general problem, but hard to reproduce. When an
+	  unsigned rrset is being validated and the key fetched, the DS
+	  sequence is followed, but if the final name has no DS, then no
+	  proof is possible - the signature has been stripped off.
+
+20 September 2007: Wouter
+	- fixup and test for NSEC wildcard with empty nonterminals. 
+	- makedist.sh fixup for svn info.
+	- acl features request in plan.
+	- improved DS empty nonterminal handling.
+	- compat with ANS nxdomain for empty nonterminals. Attempts the nodata
+	  proof anyway, which succeeds in ANS failure case.
+	- striplab protection in case it becomes -1.
+	- plans for static and blacklist config.
+
+19 September 2007: Wouter
+	- comments about non-packed usage.
+	- plan for overload support in 0.6.
+	- added testbound tests for a failed resolution from the logs
+	  and for failed prime when missing glue.
+	- fixup so useless delegation points are not returned from the
+	  cache. Also the safety belt is used if priming fails to complete.
+	- fixup NSEC rdata not to be lowercased, bind compat.
+
+18 September 2007: Wouter
+	- wildcard nsec3 testcases, and fixup to get correct wildcard name.
+	- validator prints subtype classification for debug.
+
+17 September 2007: Wouter
+	- NSEC3 hash cache unit test.
+	- validator nsec3 nameerror test.
+
+14 September 2007: Wouter
+	- nsec3 nodata proof, nods proof, wildcard proof.
+	- nsec3 support for cname chain ending in noerror or nodata.
+	- validator calls nsec3 proof routines if no NSECs prove anything.
+	- fixup iterator bug where it stored the answer to a cname under
+	  the wrong qname into the cache. When prepending the cnames, the
+	  qname has to be reset to the original qname.
+
+13 September 2007: Wouter
+	- nsec3 find matching and covering, ce proof, prove namerror msg.
+
+12 September 2007: Wouter
+	- fixup of manual page warnings, like for NSD bugreport.
+	- nsec3 work, config, max iterations, filter, and hash cache. 
+
+6 September 2007: Wouter
+	- fixup to find libevent on mac port install.
+	- fixup size_t vs unsigned portability in validator/sigcrypt.
+	- please compiler on different platforms, for unreachable code.
+	- val_nsec3 file.
+	- pthread_rwlock type is optional, in case of old pthread libs.
+
+5 September 2007: Wouter
+	- cname, name error validator tests.
+	- logging of qtype ANY works.
+	- ANY type answers get RRSIG in answer section of replies (but not
+	  in other sections, unless DO bit is on).
+	- testbound can replay a TCP query (set MATCH TCP in the QUERY).
+	- DS and noDS referral validation test.
+	- if you configure many trust anchors, parent trust anchors can
+	  securely deny existance of child trust anchors, if validated.
+	- not all *.name NSECs are present because a wildcard was matched,
+	  and *.name NSECs can prove nodata for empty nonterminals.
+	  Also, for wildcard name NSECs, check they are not from the parent
+	  zone (for wildcarded zone cuts), and check absence of CNAME bit,
+	  for a nodata proof.
+	- configure option for memory allocation debugging.
+	- port configure option for memory allocation to solaris10.
+
+4 September 2007: Wouter
+	- fixup of Leakage warning when serviced queries processed multiple
+	  callbacks for the same query from the same server.
+	- testbound removes config file from /tmp on failed exit.
+	- fixup for referral cleanup of the additional section.
+	- tests for cname, referral validation.
+	- neater testbound tpkg output.
+	- DNAMEs no longer match their apex when synthesized from the cache.
+	- find correct signer name for DNAME responses.
+	- wildcarded DNAME test and fixup code to detect.
+	- prepend NSEC and NSEC3 rrsets in the iterator while chasing CNAMEs.
+	  So that wildcarded CNAMEs get their NSEC with them to the answer.
+	- test for a CNAME to a DNAME to a CNAME to an answer, all from
+	  different domains, for key fetching and signature checking of
+	  CNAME'd messages.
+
+3 September 2007: Wouter
+	- Fixed error in iterator that would cause assertion failure in 
+	  validator. CNAME to a NXDOMAIN response was collated into a response
+	  with both a CNAME and the NXDOMAIN rcode. Added a test that the
+	  rcode is changed to NOERROR (because of the CNAME).
+	- timeout on tcp does not lead to spurious leakage detect.
+	- account memory for name of lame zones, so that memory leakages does
+	  not show lame cache growth as a leakage growth.
+	- config setting for lameness cache expressed in bytes, instead of
+	  number of entries.
+	- tool too summarize allocations per code line.
+
+31 August 2007: Wouter
+	- can read bind trusted-keys { ... }; files, in a compatibility mode. 
+	- iterator should not detach target queries that it still could need.
+	  the protection against multiple outstanding queries is moved to a
+	  current_query num check.
+	- validator nodata, positive, referral tests.
+	- dname print can print '*' wildcard.
+
+30 August 2007: Wouter
+	- fixup override date config option.
+	- config options to control memory usage.
+	- caught bad free of un-alloced data in worker_send error case.
+	- memory accounting for key cache (trust anchors and temporary cache).
+	- memory accounting fixup for outside network tcp pending waits.
+	- memory accounting fixup for outside network tcp callbacks.
+	- memory accounting for iterator fixed storage.
+	- key cache size and slabs config options.
+	- lib crypto cleanups at exit. 
+
+29 August 2007: Wouter
+	- test tool to sign rrsets for testing validator with.
+	- added RSA and DSA test keys, public and private pairs, 512 bits.
+	- default configuration is with validation enabled.
+	  Only a trust-anchor needs to be configured for DNSSEC to work.
+	- do not convert to DER for DSA signature verification.
+	- validator replay test file, for a DS to DNSKEY DSA key prime and
+	  positive response.
+
+28 August 2007: Wouter
+	- removed double use for udp buffers, that could fail,
+	  instead performs a malloc to do the backup.
+	- validator validates referral messages, by validating all the rrsets
+	  and stores the rrsets in the cache. Further referral (nonRD queries)
+	  replies are made from the rrset cache directly. Unless unchecked
+	  rrsets are encountered, there are then validated.
+	- enforce that signing is done by a parent domain (or same domain).
+	- adjust TTL downwards if rrset TTL bigger than signature allows.
+	- permissive mode feature, sets AD bit for secure, but bogus does
+	  not give servfail (bogus is changed into indeterminate).
+	- optimization of rrset verification. rr canonical sorting is reused,
+	  for the same rrset. canonical rrset image in buffer is reused for
+	  the same signature.
+	- if the rrset is too big (64k exactly + large owner name) the
+	  canonicalization routine will fail if it does not fit in buffer.
+	- faster verification for large sigsets.
+	- verb_detail mode reports validation failures, but not the entire
+	  algorithm for validation. Key prime failures are reported as 
+	  verb_ops level.
+
+27 August 2007: Wouter
+	- do not garble the edns if a cache answer fails.
+	- answer norecursive from cache if possible.
+	- honor clean_additional setting when returning secure non-recursive
+	  referrals.
+	- do not store referral in msg cache for nonRD queries.
+	- store verification status in the rrset cache to speed up future
+	  verification.
+	- mark rrsets indeterminate and insecure if they are found to be so.
+	  and store this in the cache.
+
+24 August 2007: Wouter
+	- message is bogus if unsecure authority rrsets are present.
+	- val-clean-additional option, so you can turn it off.
+	- move rrset verification out of the specific proof types into one
+	  routine. This makes the proof routines prettier.
+	- fixup cname handling in validator, cname-to-positive and cname-to-
+	  nodata work.
+	- Do not synthesize DNSKEY and DS responses from the rrset cache if
+	  the rrset is from the additional section. Signatures may have
+	  fallen off the packet, and cause validation failure.
+	- more verbose signature date errors (with the date attached).
+	- increased default infrastructure cache size. It is important for
+	  performance, and 1000 entries are only 212k (or a 400 k total cache
+	  size). To 10000 entries (for 2M entries, 4M cache size).
+
+23 August 2007: Wouter
+	- CNAME handling - move needs_validation to before val_new().
+	  val_new() setups the chase-reply to be an edited copy of the msg.
+	  new classification, and find signer can find for it. 
+	  removal of unsigned crap from additional, and query restart for
+	  cname.
+	- refuse to follow wildcarded DNAMEs when validating.
+	  But you can query for qtype ANY, or qtype DNAME and validate that.
+
+22 August 2007: Wouter
+	- bogus TTL.
+	- review - use val_error().
+
+21 August 2007: Wouter
+	- ANY response validation.
+	- store security status in cache.
+	- check cache security status and either send the query to be
+	  validated, return the query to client, or send servfail to client.
+	  Sets AD bit on validated replies.
+	- do not examine security status on an error reply in mesh_done.
+	- construct DS, DNSKEY messages from rrset cache.
+	- manual page entry for override-date.
+
+20 August 2007: Wouter
+	- validate and positive validation, positive wildcard NSEC validation.
+	- nodata validation, nxdomain validation.
+
+18 August 2007: Wouter
+	- process DNSKEY response in FINDKEY state.
+
+17 August 2007: Wouter
+	- work on DS2KE routine.
+	- val_nsec.c for validator NSEC proofs.
+	- unit test for NSEC bitmap reading.
+	- dname iswild and canonical_compare with unit tests.
+
+16 August 2007: Wouter
+	- DS sig unit test.
+	- latest release libevent 1.3c and 1.3d have threading fixed.
+	- key entry fixup data pointer and ttl absolute.
+	- This makes a key-prime succeed in validator, with DS or DNSKEY as
+	  trust-anchor.
+	- fixup canonical compare byfield routine, fix bug and also neater.
+	- fixed iterator response type classification for queries of type
+	  ANY and NS.
+	  dig ANY gives sometimes NS rrset in AN and NS section, and parser
+	  removes the NS section duplicate. dig NS gives sometimes the NS
+	  in the answer section, as referral.
+	- validator FINDKEY state.
+
+15 August 2007: Wouter
+	- crypto calls to verify signatures.
+	- unit test for rrsig verification.
+
+14 August 2007: Wouter
+	- default outgoing ports changed to avoid port 2049 by default.
+	  This port is widely blocked by firewalls.
+	- count infra lameness cache in memory size.
+	- accounting of memory improved
+	- outbound entries are allocated in the query region they are for.
+	- extensive debugging for memory allocations.
+	- --enable-lock-checks can be used to enable lock checking.
+	- protect undefs in config.h from autoheaders ministrations.
+	- print all received udp packets. log hex will print on multiple
+	  lines if needed.
+	- fixed error in parser with backwards rrsig references.
+	- mark cycle targets for iterator did not have CD flag so failed
+	  its task.
+
+13 August 2007: Wouter
+	- fixup makefile, if lexer is missing give nice error and do not
+	  mess up the dependencies.
+	- canonical compare routine updated.
+	- canonical hinfo compare.
+	- printout list of the queries that the mesh is working on.
+
+10 August 2007: Wouter
+	- malloc and free overrides that track total allocation and frees.
+	  for memory debugging.
+	- work on canonical sort.
+
+9 August 2007: Wouter
+	- canonicalization, signature checks
+	- dname signature label count and unit test.
+	- added debug heap size print to memory printout.
+	- typo fixup in worker.c
+	- -R needed on solaris.
+	- validator override option for date check testing.
+
+8 August 2007: Wouter
+	- ldns _raw routines created (in ldns trunk).
+	- sigcrypt DS digest routines
+	- val_utils uses sigcrypt to perform signature cryptography.
+	- sigcrypt keyset processing
+
+7 August 2007: Wouter
+	- security status type.
+	- security status is copied when rdata is equal for rrsets.
+	- rrset id is updated to invalidate all the message cache entries
+	  that refer to NSEC, NSEC3, DNAME rrsets that have changed.
+	- val_util work
+	- val_sigcrypt file for validator signature checks.
+
+6 August 2007: Wouter
+	- key cache for validator.
+	- moved isroot and dellabel to own dname routines, with unit test.
+
+3 August 2007: Wouter
+	- replanning.
+	- scrubber check section of lame NS set.
+	- trust anchors can be in config file or read from zone file,
+	  DS and DNSKEY entries.
+	- unit test trust anchor storage.
+	- trust anchors converted to packed rrsets.
+	- key entry definition.
+
+2 August 2007: Wouter
+	- configure change for latest libevent trunk version (needs -lrt).
+	- query_done and walk_supers are moved out of module interface.
+	- fixup delegation point duplicates.
+	- fixup iterator scrubber; lame NS set is let through the scrubber
+	  so that the classification is lame.
+	- validator module exists, and does nothing but pass through,
+	  with calling of next module and return.
+	- validator work.
+
+1 August 2007: Wouter
+	- set version to 0.5
+	- module work for module to module interconnections.
+	- config of modules.
+	- detect cycle takes flags.
+
+31 July 2007: Wouter
+	- updated plan
+	- release 0.4 tag.
+
+30 July 2007: Wouter
+	- changed random state init, so that sequential process IDs are not
+	  cancelled out by sequential thread-ids in the random number seed.
+	- the fwd_three test, which sends three queries to unbound, and 
+	  unbound is kept waiting by ldns-testns for 3 seconds, failed
+	  because the retry timeout for default by unbound is 3 seconds too,
+	  it would hit that timeout and fail the test. Changed so that unbound
+	  is kept waiting for 2 seconds instead.
+
+27 July 2007: Wouter
+	- removed useless -C debug option. It did not work.
+	- text edit of documentation.
+	- added doc/CREDITS file, referred to by the manpages.
+	- updated planning.
+
+26 July 2007: Wouter
+	- cycle detection, for query state dependencies. Will attempt to
+	  circumvent the cycle, but if no other targets available fails.
+	- unit test for AXFR, IXFR response.
+	- test for cycle detection.
+
+25 July 2007: Wouter
+	- testbound read ADDRESS and check it.
+	- test for version.bind and friends.
+	- test for iterator chaining through several referrals.
+	- test and fixup for refetch for glue. Refetch fails if glue
+	  is still not provided.
+
+24 July 2007: Wouter
+	- Example section in config manual.
+	- Addr stored for range and moment in replay.
+
+20 July 2007: Wouter
+	- Check CNAME chain before returning cache entry with CNAMEs.
+	- Option harden-glue, default is on. It will discard out of zone
+	  data. If disabled, performance is faster, but spoofing attempts
+	  become a possibility. Note that still normalize scrubbing is done,
+	  and that the potentially spoofed data is used for infrastructure
+	  and not returned to the client.
+	- if glue times out, refetch by asking parent of delegation again.
+	  Much like asking for DS at the parent side.
+	- TODO items from forgery-resilience draft.
+	  and on memory handling improvements.
+	- renamed module_event_timeout to module_event_noreply.
+	- memory reporting code; reports on memory usage after handling
+	  a network packet (not on cache replies).
+
+19 July 2007: Wouter
+	- shuffle NS selection when getting nameserver target addresses.
+	- fixup of deadlock warnings, yield cpu in checklock code so that
+	  freebsd scheduler selects correct process to run.
+	- added identity and version config options and replies.
+	- store cname messages complete answers.
+
+18 July 2007: Wouter
+	- do not query addresses, 127.0.0.1, and ::1 by default.
+
+17 July 2007: Wouter
+	- forward zone options in config file.
+	- forward per zone in iterator. takes precendence over stubs.
+	- fixup commithooks.
+	- removed forward-to and forward-to-port features, subsumed by
+	  new forward zones.
+	- fix parser to handle absent server: clause.
+	- change untrusted rrset test to account for scrubber that is now
+	  applied during the test (which removes the poison, by the way).
+	- feature, addresses can be specified with @portnumber, like nsd.conf.
+	- test config files changed over to new forwarder syntax.
+
+27 June 2007: Wouter
+	- delete of mesh does a postorder traverse of the tree.
+	- found and fixed a memory leak. For TTL=0 messages, that would
+	  not be cached, instead the msg-replyinfo structure was leaked.
+	- changed server selection so it will filter out hosts that are
+	  unresponsive. This is defined as a host with the maximum rto value.
+	  This means that unbound tried the host for retries up to 120 secs.
+	  The rto value will time out after host-ttl seconds from the cache.
+	  This keeps such unresolvable queries from taking up resources.
+	- utility for keeping histogram.
+
+26 June 2007: Wouter
+	- mesh is called by worker, and iterator uses it.
+	  This removes the hierarchical code.
+	  QueryTargets state and Finished state are merged for iterator.
+	- forwarder mode no longer sets AA bit on first reply.
+	- rcode in walk_supers is not needed.
+
+25 June 2007: Wouter
+	- more mesh work.
+	- error encode routine for ease.
+
+22 June 2007: Wouter
+	- removed unused _node iterator value from rbtree_t. Takes up space.
+	- iterator can handle querytargets state without a delegation point
+	  set, so that a priming(stub) subquery error can be handled.
+	- iterator stores if it is priming or not.
+	- log_query_info() neater logging.
+	- changed iterator so that it does not alter module_qstate.qinfo
+	  but keeps a chase query info. Also query_flags are not altered,
+	  the iterator uses chase_flags.
+	- fixup crash in case no ports for the family exist.
+
+21 June 2007: Wouter
+	- Fixup secondary buffer in case of error callback.
+	- cleanup slumber list of runnable states.
+	- module_subreq_depth fails to work in slumber list.
+	- fixup query release for cached results to sub targets.
+	- neater error for tcp connection failure, shows addr in verbose.
+	- rbtree_init so that it can be used with preallocated memory.
+
+20 June 2007: Wouter
+	- new -C option to enable coredumps after forking away.
+	- doc update.
+	- fixup CNAME generation by scrubber, and memory allocation of it.
+	- fixup deletion of serviced queries when all callbacks delete too.
+	- set num target queries to 0 when you move them to slumber list.
+	- typo in check caused subquery errors to be ignored, fixed.
+	- make lint happy about rlim_t.
+	- freeup of modules after freeup of module-states.
+	- duplicate replies work, this uses secondary udp buffer in outnet.
+
+19 June 2007: Wouter
+	- nicer layout in stats.c, review 0.3 change.
+	- spelling improvement, review 0.3 change.
+	- uncapped timeout for server selection, so that very fast or slow
+	  servers will stand out from the rest.
+	- target-fetch-policy: "3 2 1 0 0" config setting.
+	- fixup queries answered without RD bit (for root prime results).
+	- refuse AXFR and IXFR requests.
+	- fixup RD flag in error reply from iterator. fixup RA flag from
+	  worker error reply.
+	- fixup encoding of very short edns buffer sizes, now sets TC bit.
+	- config options harden-short-bufsize and harden-large-queries.
+
+18 June 2007: Wouter
+	- same, move subqueries to slumber list when first has resolved.
+	- fixup last fix for duplicate callbacks.
+	- another offbyone in targetcounter. Also in Java prototype by the way.
+
+15 June 2007: Wouter
+	- if a query asks to be notified of the same serviced query result
+	  multiple times, this will succeed. Only one callback will happen;
+	  multiple outbound-list entries result (but the double cleanup of it
+	  will not matter).
+	- when iterator moves on due to CNAME or referral, it will remove
+	  the subqueries (for other targets). These are put on the slumber
+	  list.
+	- state module wait subq is OK with no new subqs, an old one may have
+	  stopped, with an error, and it is still waiting for other ones.
+	- if a query loops, halt entire query (easy way to clean up properly).
+
+14 June 2007: Wouter
+	- num query targets was > 0 , not >= 0 compared, so that fetch
+	  policy of 0 did nothing.
+
+13 June 2007: Wouter
+	- debug option: configure --enable-static-exe for compile where
+	  ldns and libevent are linked statically. Default is off.
+	- make install and make uninstall. Works with static-exe and without.
+	  installation of unbound binary and manual pages.
+	- alignement problem fix on solaris 64.
+	- fixup address in case of TCP error.
+
+12 June 2007: Wouter
+	- num target queries was set to 0 at a bad time. Default it to 0 and
+	  increase as target queries are done.
+	- synthesize CNAME and DNAME responses from the cache.
+	- Updated doxygen config for doxygen 1.5.
+	- aclocal newer version.
+	- doxygen 1.5 fixes for comments (for the strict check on docs).
+
+11 June 2007: Wouter
+	- replies on TCP queries have the address field set in replyinfo,
+	  for serviced queries, because the initiator does not know that
+	  a TCP fallback has occured.
+	- omit DNSSEC types from nonDO replies, except if qtype is ANY or
+	  if qtype directly queries for the type (and then only show that
+	  'unknown type' in the answer section).
+	- fixed message parsing where rrsigs on their own would be put
+	  in the signature list over the rrsig type.
+
+7 June 2007: Wouter
+	- fixup error in double linked list insertion for subqueries and
+	  for outbound list of serviced queries for iterator module.
+	- nicer printout of outgoing port selection. 
+	- fixup cname target readout.
+	- nicer debug output.
+	- fixup rrset counts when prepending CNAMEs to the answer.
+	- fixup rrset TTL for prepended CNAMEs.
+	- process better check for looping modules, and which submodule to
+	  run next.
+	- subreq insertion code fixup for slumber list.
+	- VERB_DETAIL, verbosity: 2 level gives short but readable output.
+	  VERB_ALGO, verbosity: 3 gives extensive output.
+	- fixup RA bit in cached replies.
+	- fixup CNAME responses from the cache no longer partial response.
+	- error in network send handled without leakage.
+	- enable ip6 from config, and try ip6 addresses if available,
+	  if ip6 is not connected, skips to next server.
+
+5 June 2007: Wouter
+	- iterator state finished.
+	- subrequests without parent store in cache and stop.
+	- worker slumber list for ongoing promiscuous queries.
+	- subrequest error handling.
+	- priming failure returns SERVFAIL.
+	- priming gives LAME result, returns SERVFAIL.
+	- debug routine to print dns_msg as handled by iterator.
+	- memleak in config file stubs fixup.
+	- more small bugs, in scrubber, query compare no ID for lookup,
+	  in dname validation for NS targets.
+	- sets entry.key for new special allocs.
+	- lognametypeclass can display unknown types and classes.
+
+4 June 2007: Wouter
+	- random selection of equally preferred nameserver targets.
+	- reply info copy routine. Reuses existing code.
+	- cache lameness in response handling.
+	- do not touch qstate after worker_process_query because it may have
+	  been deleted by that routine.
+	- Prime response state.
+	- Process target response state.
+	- some memcmp changed to dname_compare for case preservation.
+
+1 June 2007: Wouter
+	- normalize incoming messages. Like unbound-java, with CNAME chain
+	  checked, DNAME checked, CNAME's synthesized, glue checked.
+	- sanitize incoming messages.
+	- split msgreply encode functions into own file msgencode.c.
+	- msg_parse to queryinfo/replyinfo conversion more versatile.
+	- process_response, classify response, delegpt_from_message. 
+
+31 May 2007: Wouter
+	- querytargets state.
+	- dname_subdomain_c() routine.
+	- server selection, based on RTT. ip6 is filtered out if not available,
+	  and lameness is checked too.
+	- delegation point copy routine.
+
+30 May 2007: Wouter
+	- removed FLAG_CD from message and rrset caches. This was useful for
+	  an agnostic forwarder, but not for a sophisticated (trust value per
+	  rrset enabled) cache.
+	- iterator reponse typing.
+	- iterator cname handle.
+	- iterator prime start.
+	- subquery work.
+	- processInitRequest and processInitRequest2.
+	- cache synthesizes referral messages, with DS and NSEC.
+	- processInitRequest3.
+	- if a request creates multiple subrequests these are all activated.
+
+29 May 2007: Wouter
+	- routines to lock and unlock array of rrsets moved to cache/rrset.
+	- lookup message from msg cache (and copy to region).
+	- fixed cast error in dns msg lookup.
+	- message with duplicate rrset does not increase its TTLs twice.
+	- 'qnamesize' changed to 'qname_len' for similar naming scheme.
+
+25 May 2007: Wouter
+	- Acknowledge use of unbound-java code in iterator. Nicer readme.
+	- services/cache/dns.c DNS Cache. Hybrid cache uses msgcache and
+	  rrset cache from module environment.
+	- packed rrset key has type and class as easily accessable struct
+	  members. They are still kept in network format for fast msg encode.
+	- dns cache find_delegation routine.
+	- iterator main functions setup.
+	- dns cache lookup setup.
+
+24 May 2007: Wouter
+	- small changes to prepare for subqueries.
+	- iterator forwarder feature separated out.
+	- iterator hints stub code, config file stub code, so that first
+	  testing can proceed locally.
+	- replay tests now have config option to enable forwarding mode.
+
+23 May 2007: Wouter
+	- outside network does precise timers for roundtrip estimates for rtt
+	  and for setting timeout for UDP. Pending_udp takes milliseconds.
+	- cleaner iterator sockaddr conversion of forwarder address.
+	- iterator/iter_utils and iter_delegpt setup.
+	- root hints.
+
+22 May 2007: Wouter
+	- outbound query list for modules and support to callback with the
+	  outbound entry to the module.
+	- testbound support for new serviced queries.
+	- test for retry to TCP cannot use testbound any longer.
+	- testns test for EDNS fallback, test for TCP fallback already exists.
+	- fixes for no-locking compile.
+	- mini_event timer precision and fix for change in timeouts during
+	  timeout callback. Fix for fwd_three tests, performed nonexit query.
+
+21 May 2007: Wouter
+	- small comment on hash table locking.
+	- outside network serviced queries, contain edns and tcp fallback,
+	  and udp retries and rtt timing.
+
+16 May 2007: Wouter
+	- lruhash_touch() would cause locking order problems. Fixup in 
+	  lock-verify in case locking cycle is found.
+	- services/cache/rrset.c for rrset cache code.
+	- special rrset_cache LRU updating function that uses the rrset id.
+	- no dependencies calculation when make clean is called.
+	- config settings for infra cache.
+	- daemon code slightly cleaner, only creates caches once.
+
+15 May 2007: Wouter
+	- host cache code.
+	- unit test for host cache.
+
+14 May 2007: Wouter
+	- Port to OS/X and Dec Alpha. Printf format and alignment fixes.
+	- extensive lock debug report on join timeout.
+	- proper RTT calculation, in utility code.
+	- setup of services/cache/infra, host cache.
+
+11 May 2007: Wouter
+	- iterator/iterator.c module.
+	- fixup to pass reply_info in testcode and in netevent.
+
+10 May 2007: Wouter
+	- created release-0.3 svn tag.
+	- util/module.h
+	- fixed compression - no longer compresses root name.
+
+9 May 2007: Wouter
+	- outside network cleans up waiting tcp queries on exit.
+	- fallback to TCP.
+	- testbound replay with retry in TCP mode.
+	- tpkg test for retry in TCP mode, against ldns-testns server.
+	- daemon checks max number of open files and complains if not enough.
+	- test where data expires in the cache.
+	- compiletests: fixed empty body ifstatements in alloc.c, in case
+	  locks are disabled.
+
+8 May 2007: Wouter
+	- outgoing network keeps list of available tcp buffers for outgoing 
+	  tcp queries.
+	- outgoing-num-tcp config option.
+	- outgoing network keeps waiting list of queries waiting for buffer.
+	- netevent supports outgoing tcp commpoints, nonblocking connects.
+
+7 May 2007: Wouter
+	- EDNS read from query, used to make reply smaller.
+	- advertised edns value constants.
+	- EDNS BADVERS response, if asked for too high edns version.
+	- EDNS extended error reponses once the EDNS record from the query
+	  has successfully been parsed.
+
+4 May 2007: Wouter
+	- msgreply sizefunc is more accurate.
+	- config settings for rrset cache size and slabs.
+	- hashtable insert takes argument so that a thread can use its own
+	  alloc cache to store released keys.
+	- alloc cache special_release() locks if necessary.
+	- rrset trustworthiness type added.
+	- thread keeps a scratchpad region for handling messages.
+	- writev used in netevent to write tcp length and data after another.
+	  This saves a roundtrip on tcp replies.
+	- test for one rrset updated in the cache.
+	- test for one rrset which is not updated, as it is not deemed
+	  trustworthy enough.
+	- test for TTL refreshed in rrset.
+
+3 May 2007: Wouter
+	- fill refs. Use new parse and encode to answer queries.
+	- stores rrsets in cache.
+	- uses new msgreply format in cache.
+
+2 May 2007: Wouter
+	- dname unit tests in own file and spread out neatly in functions.
+	- more dname unit tests.
+	- message encoding creates truncated TC flagged messages if they do 
+	  not fit, and will leave out (whole)rrsets from additional if needed.
+
+1 May 2007: Wouter
+	- decompress query section, extremely lenient acceptance.
+	  But only for answers from other servers, not for plain queries.
+	- compression and decompression test cases.
+	- some stats added.
+	- example.conf interface: line is changed from 127.0.0.1 which leads
+	  to problems if used (restricting communication to the localhost),
+	  to a documentation and test address.
+
+27 April 2007: Wouter
+	- removed iov usage, it is not good for dns message encoding.
+	- owner name compression more optimal.
+	- rrsig owner name compression.
+	- rdata domain name compression.
+
+26 April 2007: Wouter
+	- floating point exception fix in lock-verify.
+	- lint uses make dependency
+	- fixup lint in dname owner domain name compression code.
+	- define for offset range that can be compressed to.
+
+25 April 2007: Wouter
+	- prettier code; parse_rrset->type kept in host byte order.
+	- datatype used for hashvalue of converted rrsig structure.
+	- unit test compares edns section data too.
+
+24 April 2007: Wouter
+	- ttl per RR, for RRSIG rrsets and others.
+	- dname_print debug function.
+	- if type is not known, size calc will skip DNAME decompression.
+	- RRSIG parsing and storing and putting in messages.
+	- dnssec enabled unit tests (from nlnetlabs.nl and se queries).
+	- EDNS extraction routine.
+
+20 April 2007: Wouter
+	- code comes through all of the unit tests now.
+	- disabled warning about spurious extra data.
+	- documented the RRSIG parse plan in msgparse.h.
+	- rrsig reading and outputting.
+
+19 April 2007: Wouter
+	- fix unit test to actually to tests.
+	- fix write iov helper, and fakevent code.
+	- extra builtin testcase (small packet).
+	- ttl converted to network format in packets.
+	- flags converted correctly
+	- rdatalen off by 2 error fixup.
+	- uses less iov space for header.
+
+18 April 2007: Wouter
+	- review of msgparse code.
+	- smaller test cases.
+
+17 April 2007: Wouter
+	- copy and decompress dnames.
+	- store calculated hash value too.
+	- routine to create message out of stored information.
+	- util/data/msgparse.c for message parsing code.
+	- unit test, and first fixes because of test.
+		* forgot rrset_count addition.
+		* did & of ptr on stack for memory position calculation.
+		* dname_pkt_copy forgot to read next label length.
+	- test from file and fixes
+		* double frees fixed in error conditions.
+		* types with less than full rdata allowed by parser.
+		  Some dynamic update packets seem to use it.
+
+16 April 2007: Wouter
+	- following a small change in LDNS, parsing code calculates the
+	  memory size to allocate for rrs.
+	- code to handle ID creation.
+
+13 April 2007: Wouter
+	- parse routines. Code that parses rrsets, rrs.
+
+12 April 2007: Wouter
+	- dname compare routine that preserves case, with unit tests.
+	
+11 April 2007: Wouter
+	- parse work - dname packet parse, msgparse, querysection parse,
+	  start of sectionparse.
+
+10 April 2007: Wouter
+	- Improved alignment of reply_info packet, nice for 32 and 64 bit.
+	- Put RRset counts in reply_info, because the number of RRs can change
+	  due to RRset updates.
+	- import of region-allocator code from nsd.
+	- set alloc special type to ub_packed_rrset_key.
+	  Uses lruhash entry overflow chain next pointer in alloc cache.
+	- doxygen documentation for region-allocator.
+	- setup for parse scratch data.
+
+5 April 2007: Wouter
+	- discussed packed rrset with Jelte.
+
+4 April 2007: Wouter
+	- moved to version 0.3.
+	- added util/data/dname.c
+	- layout of memory for rrsets.
+
+3 April 2007: Wouter
+	- detect sign of msghdr.msg_iovlen so that the cast to that type
+	  in netevent (which is there to please lint) can be correct.
+	  The type on several OSes ranges from int, int32, uint32, size_t.
+	  Detects unsigned or signed using math trick.
+	- constants for DNS flags. 
+	- compilation without locks fixup.
+	- removed include of unportable header from lookup3.c.
+	- more portable use of struct msghdr.
+	- casts for printf warning portability.
+	- tweaks to tests to port them to the testbed.
+	- 0.2 tag created.
+
+2 April 2007: Wouter
+	- check sizes of udp received messages, not too short.
+	- review changes. Some memmoves can be memcpys: 4byte aligned.
+	  set id correctly on cached answers. 
+	- review changes msgreply.c, memleak on error condition. AA flag
+	  clear on cached reply. Lowercase queries on hashing.
+	  unit test on lowercasing. Test AA bit not set on cached reply.
+	  Note that no TTLs are managed.
+
+29 March 2007: Wouter
+	- writev or sendmsg used when answering from cache.
+	  This avoids a copy of the data.
+	- do not do useless byteswap on query id. Store reply flags in uint16
+	  for easier access (and no repeated byteswapping).
+	- reviewed code.
+	- configure detects and config.h includes sys/uio.h for writev decl.
+
+28 March 2007: Wouter
+	- new config option: num-queries-per-thread.
+	- added tpkg test for answering three queries at the same time
+	  using one thread (from the query service list).
+
+27 March 2007: Wouter
+	- added test for cache and not cached answers, in testbound replays.
+	- testbound can give config file and commandline options from the
+	  replay file to unbound.
+	- created test that checks if items drop out of the cache.
+	- added word 'partitioned hash table' to documentation on slab hash.
+	  A slab hash is a partitioned hash table.
+	- worker can handle multiple queries at a time.
+
+26 March 2007: Wouter
+	- config settings for slab hash message cache.
+	- test for cached answer.
+	- Fixup deleting fake answer from testbound list.
+
+23 March 2007: Wouter
+	- review of yesterday's commits.
+	- covered up memory leak of the entry locks.
+	- answers from the cache correctly. Copies flags correctly.
+	- sanity check for incoming query replies.
+	- slabbed hash table. Much nicer contention, need dual cpu to see.
+
+22 March 2007: Wouter
+	- AIX configure check.
+	- lock-verify can handle references to locks that are created
+	  in files it has not yet read in.
+	- threaded hash table test. 
+	- unit test runs lock-verify afterwards and checks result.
+	- need writelock to update data on hash_insert.
+	- message cache code, msgreply code.
+
+21 March 2007: Wouter
+	- unit test of hash table, fixup locking problem in table_grow().
+	- fixup accounting of sizes for removing items from hashtable.
+	- unit test for hash table, single threaded test of integrity.
+	- lock-verify reports errors nicely. More quiet in operation.
+
+16 March 2007: Wouter
+	- lock-verifier, checks consistent order of locking.
+
+14 March 2007: Wouter
+	- hash table insert (and subroutines) and lookup implemented.
+	- hash table remove.
+	- unit tests for hash internal bin, lru functions.
+
+13 March 2007: Wouter
+	- lock_unprotect in checklocks.
+	- util/storage/lruhash.h for LRU hash table structure.
+
+12 March 2007: Wouter
+	- configure.ac moved to 0.2.
+	- query_info and replymsg util/data structure.
+
+9 March 2007: Wouter
+	- added rwlock writelock checking.
+	  So it will keep track of the writelock, and readlocks are enforced
+	  to not change protected memory areas.
+	- log_hex function to dump hex strings to the logfile.
+	- checklocks zeroes its destroyed lock after checking memory areas.
+	- unit test for alloc.
+	- identifier for union in checklocks to please older compilers.
+	- created 0.1 tag.
+
+8 March 2007: Wouter
+	- Reviewed checklock code.
+
+7 March 2007: Wouter
+	- created a wrapper around thread calls that performs some basic
+	  checking for data race and deadlock, and basic performance 
+	  contention measurement.
+
+6 March 2007: Wouter
+	- Testbed works with threading (different machines, different options).
+	- alloc work, does the special type.
+
+2 March 2007: Wouter
+	- do not compile fork funcs unless needed. Otherwise will give
+	  type errors as their typedefs have not been enabled.
+	- log shows thread numbers much more nicely (and portably).
+	- even on systems with nonthreadsafe libevent signal handling,
+	  unbound will exit if given a signal.
+	  Reloads will not work, and exit is not graceful.
+	- start of alloc framework layout.
+
+1 March 2007: Wouter
+	- Signals, libevent and threads work well, with libevent patch and
+	  changes to code (close after event_del).
+	- set ipc pipes nonblocking.
+
+27 February 2007: Wouter
+	- ub_thread_join portable definition.
+	- forking is used if no threading is available.
+	  Tested, it works, since pipes work across processes as well.
+	  Thread_join is replaced with waitpid. 
+	- During reloads the daemon will temporarily handle signals,
+	  so that they do not result in problems.
+	- Also randomize the outgoing port range for tests.
+	- If query list is full, will stop selecting listening ports for read.
+	  This makes all threads service incoming requests, instead of one.
+	  No memory is leaking during reloads, service of queries, etc.
+	- test that uses ldns-testns -f to test threading. Have to answer
+	  three queries at the same time.
+	- with verbose=0 operates quietly.
+
+26 February 2007: Wouter
+	- ub_random code used to select ID and port.
+	- log code prints thread id.
+	- unbound can thread itself, with reload(HUP) and quit working
+	  correctly.
+	- don't open pipes for #0, doesn't need it.
+	- listens to SIGTERM, SIGQUIT, SIGINT (all quit) and SIGHUP (reload).
+
+23 February 2007: Wouter
+	- Can do reloads on sigHUP. Everything is stopped, and freed,
+	  except the listening ports. Then the config file is reread.
+	  And everything is started again (and listening ports if needed).
+	- Ports for queries are shared.
+	- config file added interface:, chroot: and username:.
+	- config file: directory, logfile, pidfile. And they work too.
+	- will daemonize by default now. Use -d to stay in the foreground.
+	- got BSD random[256 state] code, made it threadsafe. util/random.
+
+22 February 2007: Wouter
+	- Have a config file. Removed commandline options, moved to config.
+	- tests use config file.
+
+21 February 2007: Wouter
+	- put -c option in man page.
+	- minievent fd array capped by FD_SETSIZE.
+
+20 February 2007: Wouter
+	- Added locks code and pthread spinlock detection.
+	- can use no locks, or solaris native thread library.
+	- added yacc and lex configure, and config file parsing code.
+	  also makedist.sh, and manpage.
+	- put include errno.h in config.h
+
+19 February 2007: Wouter
+	- Created 0.0 svn tag.
+	- added acx_pthread.m4 autoconf check for pthreads from 
+	  the autoconf archive. It is GPL-with-autoconf-exception Licensed.
+	  You can specify --with-pthreads, or --without-pthreads to configure.
+
+16 February 2007: Wouter
+	- Updated testbed script, works better by using make on remote end.
+	- removed check decls, we can compile without them.
+	- makefile supports LIBOBJ replacements.
+	- docs checks ignore compat code.
+	- added util/mini-event.c and .h, a select based alternative used with
+	  ./configure --with-libevent=no
+	  It is limited to 1024 file descriptors, and has less features.
+	- will not create ip6 sockets if ip6 not on the machine.
+
+15 February 2007: Wouter
+	- port to FreeBSD 4.11 Dec Alpha. Also works on Solaris 10 sparc64,
+	  Solaris 9, FreeBSD 6, Linux i386 and OSX powerpc.
+	- malloc rndstate, so that it is aligned for access.
+	- fixed rbtree cleanup with postorder traverse.
+	- fixed pending messages are deleted when handled.
+	- You can control verbosity; default is not verbose, every -v
+	  adds more verbosity.
+
+14 February 2007: Wouter
+	- Included configure.ac changes from ldns.
+	- detect (some) headers before the standards check.
+	- do not use isblank to test c99, since its not available on solaris9.
+	- review of testcode.
+		* entries in a RANGE are no longer reversed.
+		* print name of file with replay entry parse errors.
+	- port to OSX: cast to int for some prints of sizet.
+	- Makefile copies ldnstestpkts.c before doing dependencies on it.
+
+13 February 2007: Wouter
+	- work on fake events, first fwd replay works.
+	- events can do timeouts and errors on queries to servers.
+	- test package that runs replay scenarios.
+
+12 February 2007: Wouter
+	- work on fake events.
+
+9 February 2007: Wouter
+	- replay file reading.
+	- fake event setup, it creates fake structures, and teardowns,
+	  added signal callbacks to reply to be able to fake those,
+	  and main structure of event replay routines.
+
+8 February 2007: Wouter
+	- added tcp test.
+	- replay storage.
+	- testcode/fake_event work.
+
+7 February 2007: Wouter
+	- return answer with the same ID as query was sent with.
+	- created udp forwarder test. I've done some effort to make it perform
+	  quickly. After servers are created, no big sleep statements but
+	  it checks the logfiles to see if servers have come up. Takes 0.14s.
+	- set addrlen value when calling recvfrom.
+	- comparison of addrs more portable.
+	- LIBEVENT option for testbed to set libevent directory.
+	- work on tcp input.
+
+6 February 2007: Wouter
+	- reviewed code and improved in places.
+
+5 February 2007: Wouter
+	- Picked up stdc99 and other define tests from ldns. Improved
+	  POSIX define test to include getaddrinfo.
+	- defined constants for netevent callback error code.
+	- unit test for strisip6.
+
+2 February 2007: Wouter
+	- Created udp4 and udp6 port arrays to provide service for both
+	  address families.
+	- uses IPV6_USE_MIN_MTU for udp6 ,IPV6_V6ONLY to make ip6 sockets.
+	- listens on both ip4 and ip6 ports to provide correct return address.
+	- worker fwder address filled correctly.
+	- fixup timer code.
+	- forwards udp queries and sends answer.
+
+1 February 2007: Wouter
+	- outside network more UDP work.
+	- moved * closer to type.
+	- comm_timer object and events.
+
+31 January 2007: Wouter
+	- Added makedist.sh script to make release tarball.
+	- Removed listen callback layer, did not add anything.
+	- Added UDP recv to netevent, worker callback for udp.
+	- netevent communication reply storage structure.
+	- minimal query header sanity checking for worker.
+	- copied over rbtree implementation from NSD (BSD licensed too).
+	- outgoing network query service work.
+
+30 January 2007: Wouter
+	- links in example/ldns-testpkts.c and .h for premade packet support.
+	- added callback argument to listen_dnsport and daemon/worker.
+
+29 January 2007: Wouter
+	- unbound.8 a short manpage.
+
+26 January 2007: Wouter
+	- fixed memleak.
+	- make lint works on BSD and Linux (openssl defines).
+	- make tags works.
+	- testbound program start.
+
+25 January 2007: Wouter
+	- fixed lint so it may work on BSD.
+	- put license into header of every file.
+	- created verbosity flag.
+	- fixed libevent configure flag.
+	- detects event_base_free() in new libevent 1.2 version.
+	- getopt in daemon. fatal_exit() and verbose() logging funcs.
+	- created log_assert, that throws assertions to the logfile.
+	- listen_dnsport service. Binds ports.
+
+24  January 2007: Wouter
+	- cleaned up configure.ac.
+
+23  January 2007: Wouter
+	- added libevent to configure to link with.
+	- util/netevent setup work.
+	- configure searches for libevent.
+	- search for libs at end of configure (when other headers and types
+	  have been found).
+	- doxygen works with ATTR_UNUSED().
+	- util/netevent implementation.
+
+22  January 2007: Wouter
+	- Designed header file for network communication.
+
+16  January 2007: Wouter
+	- added readme.svn and readme.tests.
+
+4 January 2007: Wouter
+	- Testbed script (run on multiple platforms the test set).
+	  Works on Sunos9, Sunos10, FreeBSD 6.1, Fedora core 5.
+	- added unit test tpkg.
+
+3 January 2007: Wouter
+	- committed first set of files into subversion repository.
+	  svn co svn+ssh://unbound.net/svn/unbound
+	  You need a ssh login.  There is no https access yet.
+	- Added LICENSE, the BSD license.
+	- Added doc/README with compile help.
+	- main program stub and quiet makefile.
+	- minimal logging service (to stderr).
+	- added postcommit hook that serves emails.
+	- added first test 00-lint. postcommit also checks if build succeeds.
+	- 01-doc: doxygen doc target added for html docs. And stringent test
+	  on documented files, functions and parameters.
+
+15 December 2006: Wouter
+	- Created Makefile.in and configure.ac.
