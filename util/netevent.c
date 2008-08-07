@@ -209,11 +209,6 @@ void comm_base_exit(struct comm_base* b)
 	}
 }
 
-struct event_base* comm_base_internal(struct comm_base* b)
-{
-	return b->eb->base;
-}
-
 /* send a UDP reply */
 int
 comm_point_send_udp_msg(struct comm_point *c, ldns_buffer* packet,
@@ -948,7 +943,6 @@ void comm_point_raw_handle_callback(int ATTR_UNUSED(fd),
 	log_assert(c->type == comm_raw);
 	comm_base_now(c->ev->base);
 
-	fptr_ok(fptr_whitelist_comm_point_raw(c->callback));
 	(void)(*c->callback)(c, c->cb_arg, NETEVENT_NOERROR, NULL);
 }
 

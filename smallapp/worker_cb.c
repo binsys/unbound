@@ -45,13 +45,13 @@
 struct comm_reply;
 struct comm_point;
 struct module_qstate;
-struct tube;
 
-void worker_handle_control_cmd(struct tube* ATTR_UNUSED(tube),
-	uint8_t* ATTR_UNUSED(buffer), size_t ATTR_UNUSED(len),
-	int ATTR_UNUSED(error), void* ATTR_UNUSED(arg))
+int worker_handle_control_cmd(struct comm_point* ATTR_UNUSED(c), 
+	void* ATTR_UNUSED(arg), int ATTR_UNUSED(error),
+        struct comm_reply* ATTR_UNUSED(reply_info))
 {
 	log_assert(0);
+	return 0;
 }
 
 int worker_handle_request(struct comm_point* ATTR_UNUSED(c), 
@@ -148,13 +148,6 @@ int libworker_handle_service_reply(struct comm_point* ATTR_UNUSED(c),
 {
 	log_assert(0);
 	return 0;
-}
-
-void libworker_handle_control_cmd(struct tube* ATTR_UNUSED(tube),
-        uint8_t* ATTR_UNUSED(buffer), size_t ATTR_UNUSED(len),
-        int ATTR_UNUSED(error), void* ATTR_UNUSED(arg))
-{
-        log_assert(0);
 }
 
 int context_query_cmp(const void* ATTR_UNUSED(a), const void* ATTR_UNUSED(b))

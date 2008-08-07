@@ -47,7 +47,6 @@
 #include "libunbound/unbound.h"
 #include "util/data/packed_rrset.h"
 struct libworker;
-struct tube;
 
 /**
  * The context structure
@@ -60,12 +59,12 @@ struct ub_ctx {
 	/* --- pipes --- */
 	/** mutex on query write pipe */
 	lock_basic_t qqpipe_lock;
-	/** the query write pipe */
-	struct tube* qq_pipe;
+	/** the query write pipe, [0] read from, [1] write on */
+	int qqpipe[2];
 	/** mutex on result read pipe */
 	lock_basic_t rrpipe_lock;
-	/** the result read pipe */
-	struct tube* rr_pipe;
+	/** the result read pipe, [0] read from, [1] write on */
+	int rrpipe[2];
 
 	/* --- shared data --- */
 	/** mutex for access to env.cfg, finalized and dothread */

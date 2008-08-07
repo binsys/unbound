@@ -63,7 +63,6 @@
 #include "config.h"
 struct comm_point;
 struct comm_reply;
-struct event_base;
 
 /* internal event notification data storage structure. */
 struct internal_event;
@@ -289,13 +288,6 @@ void comm_base_dispatch(struct comm_base* b);
  * @param b: the communication base that is in dispatch().
  */
 void comm_base_exit(struct comm_base* b);
-
-/**
- * Access internal data structure (for util/tube.c on windows)
- * @param b: comm base
- * @return event_base. Could be libevent, or internal event handler.
- */
-struct event_base* comm_base_internal(struct comm_base* b);
 
 /**
  * Create an UDP comm point. Calls malloc.

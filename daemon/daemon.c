@@ -54,7 +54,6 @@
 #include "services/modstack.h"
 #include "util/module.h"
 #include "util/random.h"
-#include "util/tube.h"
 #include <signal.h>
 
 /** How many quit requests happened. */
@@ -293,8 +292,14 @@ void close_other_pipes(struct daemon* daemon, int thr)
 	int i;
 	for(i=0; i<daemon->num; i++)
 		if(i!=thr) {
-			tube_delete(daemon->workers[i]->cmd);
-			daemon->workers[i]->cmd = NULL;
+			if(daemon->workers[i]->cmd_send_fd != -1) {
+				close(daemon->workers[i]->cmd_send_fd);
+				daemon->workers[i]->cmd_send_fd = -1;
+			}
+			if(daemon->workers[i]->cmd_recv_fd != -1) {
+				close(daemon->workers[i]->cmd_recv_fd);
+				daemon->workers[i]->cmd_recv_fd = -1;
+			}
 		}
 }
 
@@ -357,7 +362,8 @@ daemon_stop_others(struct daemon* daemon)
 	/* skip i=0, is this thread */
 	/* use i=0 buffer for sending cmds; because we are #0 */
 	for(i=1; i<daemon->num; i++) {
-		worker_send_cmd(daemon->workers[i], worker_cmd_quit);
+		worker_send_cmd(daemon->workers[i], 
+			daemon->workers[0]->front->udp_buff, worker_cmd_quit);
 	}
 	/* wait for them to quit */
 	for(i=1; i<daemon->num; i++) {

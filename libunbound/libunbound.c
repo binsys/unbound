@@ -54,7 +54,6 @@
 #include "util/log.h"
 #include "util/random.h"
 #include "util/net_help.h"
-#include "util/tube.h"
 #include "services/modstack.h"
 #include "services/localzone.h"
 #include "services/cache/infra.h"
@@ -96,28 +95,45 @@ ub_ctx_create()
 		return NULL;
 	}
 	seed = 0;
-	if((ctx->qq_pipe = tube_create()) == NULL) {
+	if(socketpair(AF_UNIX, SOCK_STREAM, 0, ctx->qqpipe) == -1) {
+		ub_randfree(ctx->seed_rnd);
+		free(ctx);
+		return NULL;
+	}
+	if(socketpair(AF_UNIX, SOCK_STREAM, 0, ctx->rrpipe) == -1) {
 		int e = errno;
+		close(ctx->qqpipe[0]);
+		close(ctx->qqpipe[1]);
 		ub_randfree(ctx->seed_rnd);
 		free(ctx);
 		errno = e;
 		return NULL;
 	}
-	if((ctx->rr_pipe = tube_create()) == NULL) {
+#ifndef USE_WINSOCK
+	if(!fd_set_nonblock(ctx->rrpipe[0]) ||
+	   !fd_set_nonblock(ctx->rrpipe[1]) ||
+	   !fd_set_nonblock(ctx->qqpipe[0]) ||
+	   !fd_set_nonblock(ctx->qqpipe[1])) {
 		int e = errno;
-		tube_delete(ctx->qq_pipe);
+		close(ctx->rrpipe[0]);
+		close(ctx->rrpipe[1]);
+		close(ctx->qqpipe[0]);
+		close(ctx->qqpipe[1]);
 		ub_randfree(ctx->seed_rnd);
 		free(ctx);
 		errno = e;
 		return NULL;
 	}
+#endif /* !USE_WINSOCK - it is a pipe(nonsocket) on windows) */
 	lock_basic_init(&ctx->qqpipe_lock);
 	lock_basic_init(&ctx->rrpipe_lock);
 	lock_basic_init(&ctx->cfglock);
 	ctx->env = (struct module_env*)calloc(1, sizeof(*ctx->env));
 	if(!ctx->env) {
-		tube_delete(ctx->qq_pipe);
-		tube_delete(ctx->rr_pipe);
+		close(ctx->rrpipe[0]);
+		close(ctx->rrpipe[1]);
+		close(ctx->qqpipe[0]);
+		close(ctx->qqpipe[1]);
 		ub_randfree(ctx->seed_rnd);
 		free(ctx);
 		errno = ENOMEM;
@@ -125,8 +141,10 @@ ub_ctx_create()
 	}
 	ctx->env->cfg = config_create_forlib();
 	if(!ctx->env->cfg) {
-		tube_delete(ctx->qq_pipe);
-		tube_delete(ctx->rr_pipe);
+		close(ctx->rrpipe[0]);
+		close(ctx->rrpipe[1]);
+		close(ctx->qqpipe[0]);
+		close(ctx->qqpipe[1]);
 		free(ctx->env);
 		ub_randfree(ctx->seed_rnd);
 		free(ctx);
@@ -162,11 +180,11 @@ ub_ctx_delete(struct ub_ctx* ctx)
 		uint32_t cmd = UB_LIBCMD_QUIT;
 		lock_basic_unlock(&ctx->cfglock);
 		lock_basic_lock(&ctx->qqpipe_lock);
-		(void)tube_write_msg(ctx->qq_pipe, (uint8_t*)&cmd, 
+		(void)libworker_write_msg(ctx->qqpipe[1], (uint8_t*)&cmd, 
 			(uint32_t)sizeof(cmd), 0);
 		lock_basic_unlock(&ctx->qqpipe_lock);
 		lock_basic_lock(&ctx->rrpipe_lock);
-		while(tube_read_msg(ctx->rr_pipe, &msg, &len, 0)) {
+		while(libworker_read_msg(ctx->rrpipe[0], &msg, &len, 0)) {
 			/* discard all results except a quit confirm */
 			if(context_serial_getcmd(msg, len) == UB_LIBCMD_QUIT) {
 				free(msg);
@@ -204,8 +222,18 @@ ub_ctx_delete(struct ub_ctx* ctx)
 	lock_basic_destroy(&ctx->qqpipe_lock);
 	lock_basic_destroy(&ctx->rrpipe_lock);
 	lock_basic_destroy(&ctx->cfglock);
-	tube_delete(ctx->qq_pipe);
-	tube_delete(ctx->rr_pipe);
+	if(ctx->qqpipe[0] != -1)
+		close(ctx->qqpipe[0]);
+	if(ctx->qqpipe[1] != -1)
+		close(ctx->qqpipe[1]);
+	if(ctx->rrpipe[0] != -1)
+		close(ctx->rrpipe[0]);
+	if(ctx->rrpipe[1] != -1)
+		close(ctx->rrpipe[1]);
+	ctx->qqpipe[0] = -1;
+	ctx->qqpipe[1] = -1;
+	ctx->rrpipe[0] = -1;
+	ctx->rrpipe[1] = -1;
 	if(ctx->env) {
 		slabhash_delete(ctx->env->msg_cache);
 		rrset_cache_delete(ctx->env->rrset_cache);
@@ -348,17 +376,35 @@ ub_ctx_async(struct ub_ctx* ctx, int dothread)
 	return UB_NOERROR;
 }
 
+/** perform a select() on the result read pipe */
+static int 
+pollit(struct ub_ctx* ctx, struct timeval* t)
+{
+	fd_set r;
+#ifndef S_SPLINT_S
+	FD_ZERO(&r);
+	FD_SET(FD_SET_T ctx->rrpipe[0], &r);
+#endif
+	if(select(ctx->rrpipe[0]+1, &r, NULL, NULL, t) == -1) {
+		return 0;
+	}
+	errno = 0;
+	return FD_ISSET(ctx->rrpipe[0], &r);
+}
+
 int 
 ub_poll(struct ub_ctx* ctx)
 {
+	struct timeval t;
+	memset(&t, 0, sizeof(t));
 	/* no need to hold lock while testing for readability. */
-	return tube_poll(ctx->rr_pipe);
+	return pollit(ctx, &t);
 }
 
 int 
 ub_fd(struct ub_ctx* ctx)
 {
-	return tube_read_fd(ctx->rr_pipe);
+	return ctx->rrpipe[0];
 }
 
 /** process answer from bg worker */
@@ -455,7 +501,7 @@ ub_process(struct ub_ctx* ctx)
 	while(1) {
 		msg = NULL;
 		lock_basic_lock(&ctx->rrpipe_lock);
-		r = tube_read_msg(ctx->rr_pipe, &msg, &len, 1);
+		r = libworker_read_msg(ctx->rrpipe[0], &msg, &len, 1);
 		lock_basic_unlock(&ctx->rrpipe_lock);
 		if(r == 0)
 			return UB_PIPE;
@@ -481,7 +527,7 @@ ub_wait(struct ub_ctx* ctx)
 	uint8_t* msg;
 	uint32_t len;
 	/* this is basically the same loop as _process(), but with changes.
-	 * holds the rrpipe lock and waits with tube_wait */
+	 * holds the rrpipe lock and waits with pollit */
 	while(1) {
 		lock_basic_lock(&ctx->rrpipe_lock);
 		lock_basic_lock(&ctx->cfglock);
@@ -498,9 +544,9 @@ ub_wait(struct ub_ctx* ctx)
 		 * 	o possibly decrementing num_async
 		 * do callback without lock
 		 */
-		r = tube_wait(ctx->rr_pipe);
+		r = pollit(ctx, NULL);
 		if(r) {
-			r = tube_read_msg(ctx->rr_pipe, &msg, &len, 1);
+			r = libworker_read_msg(ctx->rrpipe[0], &msg, &len, 1);
 			if(r == 0) {
 				lock_basic_unlock(&ctx->rrpipe_lock);
 				return UB_PIPE;
@@ -621,7 +667,7 @@ ub_resolve_async(struct ub_ctx* ctx, char* name, int rrtype,
 	lock_basic_unlock(&ctx->cfglock);
 	
 	lock_basic_lock(&ctx->qqpipe_lock);
-	if(!tube_write_msg(ctx->qq_pipe, msg, len, 0)) {
+	if(!libworker_write_msg(ctx->qqpipe[1], msg, len, 0)) {
 		lock_basic_unlock(&ctx->qqpipe_lock);
 		free(msg);
 		return UB_PIPE;
@@ -659,7 +705,7 @@ ub_cancel(struct ub_ctx* ctx, int async_id)
 		}
 		/* send cancel to background worker */
 		lock_basic_lock(&ctx->qqpipe_lock);
-		if(!tube_write_msg(ctx->qq_pipe, msg, len, 0)) {
+		if(!libworker_write_msg(ctx->qqpipe[1], msg, len, 0)) {
 			lock_basic_unlock(&ctx->qqpipe_lock);
 			free(msg);
 			return UB_PIPE;

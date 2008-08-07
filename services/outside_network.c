@@ -669,22 +669,22 @@ pending_delete(struct outside_network* outnet, struct pending* p)
 	if(!p)
 		return;
 	if(outnet && outnet->udp_wait_first &&
-		(p->next_waiting || p == outnet->udp_wait_last) ) {
-		/* delete from waiting list, if it is in the waiting list */
-		struct pending* prev = NULL, *x = outnet->udp_wait_first;
-		while(x && x != p) {
-			prev = x;
-			x = x->next_waiting;
-		}
-		if(x) {
-			log_assert(x == p);
-			if(prev)
-				prev->next_waiting = p->next_waiting;
-			else	outnet->udp_wait_first = p->next_waiting;
-			if(outnet->udp_wait_last == p)
-				outnet->udp_wait_last = prev;
-		}
-	}
+                (p->next_waiting || p == outnet->udp_wait_last) ) {
+                /* delete from waiting list, if it is in the waiting list */
+                struct pending* prev = NULL, *x = outnet->udp_wait_first;
+                while(x && x != p) {
+                        prev = x;
+                        x = x->next_waiting;
+                }
+                if(x) {
+                        log_assert(x == p);
+                        if(prev)
+                                prev->next_waiting = p->next_waiting;
+                        else    outnet->udp_wait_first = p->next_waiting;
+                        if(outnet->udp_wait_last == p)
+                                outnet->udp_wait_last = prev;
+                }
+        }
 	if(outnet) {
 		(void)rbtree_delete(outnet->pending, p->node.key);
 	}

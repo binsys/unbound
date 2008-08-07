@@ -63,7 +63,6 @@
 #include "util/data/msgencode.h"
 #include "util/data/dname.h"
 #include "util/fptr_wlist.h"
-#include "util/tube.h"
 
 #ifdef HAVE_SYS_TYPES_H
 #  include <sys/types.h>
@@ -191,12 +190,17 @@ worker_mem_report(struct worker* ATTR_UNUSED(worker),
 }
 
 void 
-worker_send_cmd(struct worker* worker, enum worker_commands cmd)
+worker_send_cmd(struct worker* worker, ldns_buffer* buffer,
+	enum worker_commands cmd)
 {
-	uint32_t c = (uint32_t)cmd;
-	if(!tube_write_msg(worker->cmd, (uint8_t*)&c, sizeof(c), 0)) {
-		log_err("worker send cmd %d failed", (int)cmd);
-	}
+	ldns_buffer_clear(buffer);
+	/* like DNS message, length data */
+	ldns_buffer_write_u16(buffer, sizeof(uint32_t));
+	ldns_buffer_write_u32(buffer, (uint32_t)cmd);
+	ldns_buffer_flip(buffer);
+	if(!write_socket(worker->cmd_send_fd, ldns_buffer_begin(buffer),
+		ldns_buffer_limit(buffer)))
+		log_err("write socket: %s", strerror(errno));
 }
 
 int 
@@ -314,24 +318,23 @@ worker_check_request(ldns_buffer* pkt, struct worker* worker)
 	return 0;
 }
 
-void 
-worker_handle_control_cmd(struct tube* ATTR_UNUSED(tube), uint8_t* msg,
-	size_t len, int error, void* arg)
+int 
+worker_handle_control_cmd(struct comm_point* c, void* arg, int error, 
+	struct comm_reply* ATTR_UNUSED(reply_info))
 {
 	struct worker* worker = (struct worker*)arg;
 	enum worker_commands cmd;
 	if(error != NETEVENT_NOERROR) {
-		free(msg);
 		if(error == NETEVENT_CLOSED)
 			comm_base_exit(worker->base);
 		else	log_info("control event: %d", error);
-		return;
+		return 0;
 	}
-	if(len != sizeof(uint32_t)) {
-		fatal_exit("bad control msg length %d", (int)len);
+	if(ldns_buffer_limit(c->buffer) != sizeof(uint32_t)) {
+		fatal_exit("bad control msg length %d", 
+			(int)ldns_buffer_limit(c->buffer));
 	}
-	cmd = ldns_read_uint32(msg);
-	free(msg);
+	cmd = ldns_buffer_read_u32(c->buffer);
 	switch(cmd) {
 	case worker_cmd_quit:
 		verbose(VERB_ALGO, "got control cmd quit");
@@ -341,6 +344,7 @@ worker_handle_control_cmd(struct tube* ATTR_UNUSED(tube), uint8_t* msg,
 		log_err("bad command %d", (int)cmd);
 		break;
 	}
+	return 0;
 }
 
 /** check if a delegation is secure */
@@ -912,12 +916,24 @@ worker_create(struct daemon* daemon, int id, int* ports, int n)
 	}
 	worker->daemon = daemon;
 	worker->thread_num = id;
+	worker->cmd_send_fd = -1;
+	worker->cmd_recv_fd = -1;
 	if(id != 0) {
-		if(!(worker->cmd = tube_create())) {
-			free(worker->ports);
+		int sv[2];
+		/* create socketpair to communicate with worker */
+		if(socketpair(AF_UNIX, SOCK_STREAM, 0, sv) == -1) {
+			free(worker);
+			log_err("socketpair: %s", strerror(errno));
+			return NULL;
+		}
+		if(!fd_set_nonblock(sv[0]) || !fd_set_nonblock(sv[1])) {
+			close(sv[0]);
+			close(sv[1]);
 			free(worker);
 			return NULL;
 		}
+		worker->cmd_send_fd = sv[0];
+		worker->cmd_recv_fd = sv[1];
 	}
 	return worker;
 }
@@ -994,8 +1010,9 @@ worker_init(struct worker* worker, struct config_file *cfg,
 	}
 	if(worker->thread_num != 0) {
 		/* start listening to commands */
-		if(!tube_setup_bg_listen(worker->cmd, worker->base,
-			&worker_handle_control_cmd, worker)) {
+		if(!(worker->cmd_com=comm_point_create_local(worker->base, 
+			worker->cmd_recv_fd, cfg->msg_buffer_size, 
+			worker_handle_control_cmd, worker))) {
 			log_err("could not create control compt.");
 			worker_delete(worker);
 			return 0;
@@ -1072,13 +1089,21 @@ worker_delete(struct worker* worker)
 	listen_delete(worker->front);
 	outside_network_delete(worker->back);
 	comm_signal_delete(worker->comsig);
-	tube_delete(worker->cmd);
+	comm_point_delete(worker->cmd_com);
 	comm_timer_delete(worker->stat_timer);
 	free(worker->ports);
 	if(worker->thread_num == 0)
 		log_set_time(NULL);
 	comm_base_delete(worker->base);
 	ub_randfree(worker->rndstate);
+	/* close fds after deleting commpoints, to be sure.
+	   Also epoll does not like closing fd before event_del */
+	if(worker->cmd_send_fd != -1)
+		close(worker->cmd_send_fd);
+	worker->cmd_send_fd = -1;
+	if(worker->cmd_recv_fd != -1)
+		close(worker->cmd_recv_fd);
+	worker->cmd_recv_fd = -1;
 	alloc_clear(&worker->alloc);
 	regional_destroy(worker->scratchpad);
 	free(worker);
@@ -1172,13 +1197,6 @@ int libworker_handle_service_reply(struct comm_point* ATTR_UNUSED(c),
 {
 	log_assert(0);
 	return 0;
-}
-
-void libworker_handle_control_cmd(struct tube* ATTR_UNUSED(tube),
-        uint8_t* ATTR_UNUSED(buffer), size_t ATTR_UNUSED(len),
-        int ATTR_UNUSED(error), void* ATTR_UNUSED(arg))
-{
-	log_assert(0);
 }
 
 int context_query_cmp(const void* ATTR_UNUSED(a), const void* ATTR_UNUSED(b))
