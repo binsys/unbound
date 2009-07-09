@@ -1,0 +1,227 @@
+TODO items. These are interesting todo items.
+o understand synthesized DNAMEs, so those TTL=0 packets are cached properly.
+o NSEC/NSEC3 aggressive negative caching, so that updates to NSEC/NSEC3 
+  will result in proper negative responses.
+o (option) where port 53 is used for send and receive, no other ports are used.
+o (option) to not send replies to clients after a timeout of (say 5 secs) has
+  passed, but keep task active for later retries by client.
+o (option) private TTL feature (always report TTL x in answers).
+o (option) pretend-dnssec-unaware, and pretend-edns-unaware modes for workshops.
+o delegpt use rbtree for ns-list, to avoid slowdown for very large NS sets.
+o (option) reprime and refresh oft used data before timeout.
+o (option) retain prime results in a overlaid roothints file.
+o (option) store primed key data in a overlaid keyhints file (sort of like drafttimers).
+o windows version, auto update feature, a query to check for the version.
+o command the server with TSIG inband. get-config, clearcache, 
+	get stats, get memstats, get ..., reload, clear one zone from cache
+o NSID rfc 5001 support.
+o timers rfc 5011 support.
+o Treat YXDOMAIN from a DNAME properly, in iterator (not throwaway), validator.
+o make timeout backoffs randomized (a couple percent random) to spread traffic.
+o inspect date on executable, then warn user in log if its more than 1 year.
+o (option) proactively prime root, stubs and trust anchors, feature.
+  early failure, faster on first query, but more traffic.
+o library add convenience functions for A, AAAA, PTR, getaddrinfo, libresolve.
+o library add function to validate input from app that is signed.
+o add dynamic-update requests (making a dynupd request) to libunbound api.
+o SIG(0) and TSIG.
+o support OPT record placement on recv anywhere in the additional section. 
+o add local-file: config with authority features.
+o (option) to make local-data answers be secure for libunbound (default=no)
+o (option) to make chroot: copy all needed files into jail (or make jail)
+	perhaps also print reminder to link /dev/random and sysloghack.
+o overhaul outside-network servicedquery to merge with udpwait and tcpwait,
+  to make timers in servicedquery independent of udpwait queues.
+o check into rebinding ports for efficiency, configure time test.
+o EVP hardware crypto support.
+o option to ignore all inception and expiration dates for rrsigs.
+o cleaner code; return and func statements on newline.
+o memcached module that sits before validator module; checks for memcached
+  data (on local lan), stores recursion lookup.  Provides one cache for multiple resolver machines, coherent reply content in anycast setup.
+o no openssl_add_all_algorithms, but only the ones necessary, less space.
+o listen to NOTIFY messages for zones and flush the cache for that zone
+  if received.  Useful when also having a stub to that auth server.
+  Needs proper protection, TSIG, in place.
+o winevent - do not go more than 64 fds (by polling with select one by
+  one), win95/98 have 100fd limit in the kernel, so this ruins w9x portability.
+
+*** Features features, for later
+* dTLS, TLS, look to need special port numbers, cert storage, recent libssl.
+* aggressive negative caching for NSEC, NSEC3.
+* multiple queries per question, server exploration, server selection.
+* support TSIG on queries, for validating resolver deployment.
+* retry-mode, where a bogus result triggers a retry-mode query, where a list
+  of responses over a time interval is collected, and each is validated.
+  or try in TCP mode. Do not 'try all servers several times', since we must
+  not create packet storms with operator errors.
+o on windows version, implement that OS ancillary data capabilities for
+  interface-automatic. IPPKTINFO, IP6PKTINFO for WSARecvMsg, WSASendMsg.
+o local-zone directive with authority service, full authority server 
+  is a non-goal.
+o infra and lame cache: easier size config (in Mb), show usage in graphs.
+- store time of dump in cachedumps, so that on a load the ttls can be
+  compared to the absolute time, and now-expired items can be dealt with.
+
+1.3.x:
+- spoofed delegpt fixes - if DNSKEY prime fails
+	- set DNSKEY bogus and DNSKEY query msg bogus.
+	- make NS set bogus too - if not validated as secure.
+	- check where queries go - otherwise reduce TTL on NS.
+	- also make DS NSEC bogus. Also DS msg cache entry.
+- mark bogus under stringent conditions
+	- if DS at parent and validly signed. Then DNSKEY must exist.
+	- Also for trust anchor points themselves. DNSKEY must exist.
+	- so if then DNSKEY keyprime fails
+	  - then it is not simply a server that only answers qtype A.
+	  - then parent is agreeing (somewhat) with the DS record
+	  - but it could still be a lame domain, these exist 
+	    The objective is to keep tries for genuinely lame domains to a
+	    minimum, while detecting forgeries quickly. exponential backoff.
+	- for unbound we can check if we got something to verify while
+	  building that chain of trust.  If so - not lame, agressive retry.
+	  - but security-lame zones also exist and should not pose 
+	    too high a burden. Exponential backoff again.
+	    (fe. badly signed or dnskey reply too large fails).
+	- the delegation NS for the domain is bogus.
+	  The referral retried, with exponential backoff.
+	  This exponential backoff should go towards values which are close
+	  to the TTLs that are used now (on lame delegations for example).
+	  so that the extra traffic is manageable.
+	- for unbound, reset the TTL on the NS rrset. Let it timeout.
+	  Set NS rrset bogus - no more queries to the domain are done.
+	  Also set DNSKEY and DS (rrset, NSEC, msg) bogus and ttl like that.
+	  (to the same absolute value, so a clean retry is done).
+	  TTL of NS is (rounddown) timeout in seconds.
+	  Until the NS times out and referral is done again.
+	  Make sure multiple validations for chains of trust do not result
+	  in a flood of queries or backoff too quickly.
+- bogus exponential backoff cache. hash(name,t,c), size(1M, 5%).
+	TTL of 24h.  Backoff from 200msec to 24h.
+	x2 on bogus(18 tries), x8 backoff on lameness(6 tries), 
+	  when servfail for DNSKEY.
+	remove entry when validated as secure.
+	delegptspoofrecheck on lameness when harden-referral-path NS
+	query has servfail, then build chain of trust down (check DS,
+	then perform DNSKEY query) if that DNSKEY query fails servfail,
+	perform the x8 lameness retry fallback.
+
+Retry harder to get valid DNSSEC data.
+Triggered by a trust anchor or by a signed DS record for a zone.
+* If data is fetched and validation fails for it
+  or DNSKEY is fetched and validated into chain-of-trust fails for it
+  or DS is fetched and validated into chain-of-trust fails for it
+  Then
+  	blame(signer zone, IP origin of the data/DNSKEY/DS, x2)
+* If data was not fetched (SERVFAIL, lame, ...), and the data
+  is under a signed DS then:
+  	blame(thatDSname, IP origin of the data/DNSKEY/DS, x8)
+  x8 because the zone may be lame.
+  This means a chain of trust is built also for unfetched data, to
+  determine if a signed DS is present.  If insecure, nothing is done.
+* If DNSKEY was not fetched for chain of trust (SERVFAIL, lame, ...),
+  Then
+  	blame(DNSKEYname, IP origin of the data/DNSKEY/DS, x8)
+  x8 because the zone may be lame.
+* blame(zonename, guiltyIP, multiplier):
+  * Set the guiltyIP,zonename as DNSSEC-bogus-data=true in lameness cache.
+    Thusly marked servers are avoided if possible, used as last resort.
+    The guilt TTL is 15 minutes or the backoff TTL if that is larger.
+  * If the key cache entry 'being-backed-off' is true then:
+  	set this data element RRset&msg to the current backoff TTL end-time.
+	and done.
+  * if no retry entry exists for the zone key, create one with 24h TTL, 10 ms.
+    else the backoff *= multiplier.
+  * If the backoff is less than a second, remove entries from cache and
+    restart query.  Else set the TTL for the entries to that value.
+  * Entries to set or remove: DNSKEY RRset&msg, DS RRset&msg, NS RRset&msg, 
+  	in-zone glue (A and AAAA) RRset&msg, and key-cache-entry TTL.
+	The the data element RRset&msg to the backoff TTL.
+	If TTL>1sec set key-cache-entry flag 'being-backed-off' to true.
+	when entry times out that flag is reset to false again.
+* Storage extra is:
+  IP address per RRset and message.  A lot of memory really, since that is
+  132 bytes per RRset and per message.  Store plain IP: 4/16 bytes, len byte.
+  port number 2bytes. storagetime 4bytes.  +23bytes per RRset, per msg.
+  guilt flag and guilt TTL in lameness cache. Must be very big for forwarders.
+  being-backed-off flag for key cache, also backoff time value and its TTL.
+* Load on authorities:
+  For lame servers: 7 tries per day (one per three hours on average).
+  Others get up to 23 tries per day (one per hour on average).
+  Unless the cache entry falls out of the cache due to memory. In that
+  case it can be tried more often, this is similar to the NS entry falling
+  out of the cache due to memory, in that case it also has to be retried.
+* Performance analysis:
+  * domain is sold.  Unbound sees invalid signature (expired) or the old
+    servers refuse the queries.  Retry within the second, if parent has
+    new DS and NS available instantly works again (no downtime).
+  * domain is bogus signed.  Parent gets 1 query per hour.
+  * domain partly bogus.  Parent gets 1 query per hour.
+  * spoof attempt.  Unbound tries a couple times.  If not spoofed again,
+    it works, if spoofed every time unbound backs off and stops trying.
+  * parent has inconsistently signed DS records.  Together with a subzone that
+    is badly managed.  Unbound backs up to the root once per hour.
+  * parent has bad DS records, different sets on different servers, but they
+    are signed ok.  If child is okay with one set, unbound may get lucky
+    at one attempt and it'll work, otherwise, the parent is tried once in a
+    while but the zone goes dark.  Because the server that gave that bad DS
+    with good signature is not marked as problematic.
+    Perhaps mark the IPorigin of the DS as problematic on a failed applicated
+    DS as well.
+  * domain is sold, but decomission is faster than the setup of new server.
+    Unbound does exponential backoff, if new setup is fast, it'll pickup the
+    new data fast.
+  * key rollover failed.  The zone has bad keys.  Like it was bogus signed.
+  * one nameserver has bad data.  Unbound goes back to the parent but also
+    marks that server as guilty.  Picks data from other server right after,
+    retry without blackout for the user.  If the nameserver stays bad, then
+    once every retry unbound unmarks it as guilty, can then encounter
+    it again if queried, then retries with backoff.
+    If more than 7 servers are bogus, the zone becomes bogus for a while.
+  * domain was sold, but unbound has old entries in the cache.  These somehow
+    need (re)validation (were queried with +cd, now -cd).  The entries are
+    bogus.  Then this algo starts to retry but if there are many entries,
+    then unbound starts to give blackouts before trying again.
+    Due to the backoff.
+    This would be solved if we reset the backoff after successful retry,
+    however, reset of the backoff can lead to a loop.  And how to define
+    that reset condition.
+    Another option is to check if the IP address for the bad data is in
+    the delegation point for the zone.  If it is not - try again instantly.
+    This is a loop if the NS has zero TTL on its address.
+    Flush cache is when the zone is backed off to more than one second.
+    Flush is denoted by an age number, we use the rrset-special-id number,
+    this is a thread-specific number. At validation failure, if the data 
+    RRset is older than this number, it is flushed and the query is restarted.
+    A thread stores its own id number when a backoff larger than a second 
+    occurs and its id number has not been stored yet.
+    Store time in seconds when fetched from the IPaddr in every rrset,msg
+    and use that time to see if the data has to be flushed, store timetoflush
+    in the key entry.
+    Store that time when 1 second backoff is reached, so that you are sure
+    that when the backoff is done, fresh new information will have a newer
+    timestamp.
+  * unbound is configured to talk to upstream caches.  These caches have
+    inconsistent bad data.  If one is bad, it is marked bad for that zone.  
+    If all are bad, there may not be any way for unbound to remove the
+    bad entries from the upstream caches.  It simply fails.
+    Recommendation: make the upstream caches validate as well.
+  * Old data that was valid with a long TTL remains in the cache.
+    This is both an advantage and a disadvantage.
+    Advantage because if the zone is mildly broken, no time is spent redoing
+    stuff that was fine.  Or after a spoof most other stuff is still there.
+    Disadvantage.  After a sale the old data could linger for TTL time.
+  * listing bad servers and trying again may not be good enough, since
+    a combinatorial explosion for DSxDNSKEYxdata is possible for every
+    signature validation (using different nameservers for DS, DNSKEY and
+    data, assuming only the right combination has a chain of trust to data).
+
+
+later
+- selective verbosity; ubcontrol trace example.com
+- option to log only bogus domainname encountered, for demos
+- cache fork-dump, pre-load
+- for fwds, send queries to N servers in fwd-list, use first reply.
+  document high scalable, high available unbound setup onepager.
+- prefetch DNSKEY when DS in delegation seen (nonCD, underTA).
+- use libevent if available on system by default(?), default outgoing 256to1024
+
