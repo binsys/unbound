@@ -236,7 +236,4 @@ void worker_stats_clear(struct worker* worker);
 /** statistics timer callback handler */
 void worker_stat_timer_cb(void* arg);
 
-/** probe timer callback handler */
-void worker_probe_timer_cb(void* arg);
-
 #endif /* DAEMON_WORKER_H */

@@ -99,8 +99,6 @@ extern struct config_parser_state* cfg_parser;
 %token VAR_STUB_PRIME VAR_UNWANTED_REPLY_THRESHOLD VAR_LOG_TIME_ASCII
 %token VAR_DOMAIN_INSECURE VAR_PYTHON VAR_PYTHON_SCRIPT VAR_VAL_SIG_SKEW_MIN
 %token VAR_VAL_SIG_SKEW_MAX VAR_CACHE_MIN_TTL VAR_VAL_LOG_LEVEL
-%token VAR_AUTO_TRUST_ANCHOR_FILE VAR_KEEP_MISSING VAR_ADD_HOLDDOWN 
-%token VAR_DEL_HOLDDOWN VAR_SO_RCVBUF
 
 %%
 toplevelvars: /* empty */ | toplevelvars toplevelvar ;
@@ -150,9 +148,7 @@ content_server: server_num_threads | server_verbosity | server_port |
 	server_local_data_ptr | server_jostle_timeout | 
 	server_unwanted_reply_threshold | server_log_time_ascii | 
 	server_domain_insecure | server_val_sig_skew_min | 
-	server_val_sig_skew_max | server_cache_min_ttl | server_val_log_level |
-	server_auto_trust_anchor_file | server_add_holddown | 
-	server_del_holddown | server_keep_missing | server_so_rcvbuf
+	server_val_sig_skew_max | server_cache_min_ttl | server_val_log_level
 	;
 stubstart: VAR_STUB_ZONE
 	{
@@ -449,14 +445,6 @@ server_dlv_anchor: VAR_DLV_ANCHOR STRING_ARG
 			yyerror("out of memory");
 	}
 	;
-server_auto_trust_anchor_file: VAR_AUTO_TRUST_ANCHOR_FILE STRING_ARG
-	{
-		OUTYY(("P(server_auto_trust_anchor_file:%s)\n", $2));
-		if(!cfg_strlist_insert(&cfg_parser->cfg->
-			auto_trust_anchor_file_list, $2))
-			yyerror("out of memory");
-	}
-	;
 server_trust_anchor_file: VAR_TRUST_ANCHOR_FILE STRING_ARG
 	{
 		OUTYY(("P(server_trust_anchor_file:%s)\n", $2));
@@ -517,14 +505,6 @@ server_version: VAR_VERSION STRING_ARG
 		OUTYY(("P(server_version:%s)\n", $2));
 		free(cfg_parser->cfg->version);
 		cfg_parser->cfg->version = $2;
-	}
-	;
-server_so_rcvbuf: VAR_SO_RCVBUF STRING_ARG
-	{
-		OUTYY(("P(server_so_rcvbuf:%s)\n", $2));
-		if(!cfg_parse_memsize($2, &cfg_parser->cfg->socket_rcvbuf))
-			yyerror("buffer size expected");
-		free($2);
 	}
 	;
 server_msg_buffer_size: VAR_MSG_BUFFER_SIZE STRING_ARG
@@ -872,7 +852,6 @@ server_val_log_level: VAR_VAL_LOG_LEVEL STRING_ARG
 		if(atoi($2) == 0 && strcmp($2, "0") != 0)
 			yyerror("number expected");
 		else cfg_parser->cfg->val_log_level = atoi($2);
-		free($2);
 	}
 	;
 server_val_nsec3_keysize_iterations: VAR_VAL_NSEC3_KEYSIZE_ITERATIONS STRING_ARG
@@ -880,33 +859,6 @@ server_val_nsec3_keysize_iterations: VAR_VAL_NSEC3_KEYSIZE_ITERATIONS STRING_ARG
 		OUTYY(("P(server_val_nsec3_keysize_iterations:%s)\n", $2));
 		free(cfg_parser->cfg->val_nsec3_key_iterations);
 		cfg_parser->cfg->val_nsec3_key_iterations = $2;
-	}
-	;
-server_add_holddown: VAR_ADD_HOLDDOWN STRING_ARG
-	{
-		OUTYY(("P(server_add_holddown:%s)\n", $2));
-		if(atoi($2) == 0 && strcmp($2, "0") != 0)
-			yyerror("number expected");
-		else cfg_parser->cfg->add_holddown = atoi($2);
-		free($2);
-	}
-	;
-server_del_holddown: VAR_DEL_HOLDDOWN STRING_ARG
-	{
-		OUTYY(("P(server_del_holddown:%s)\n", $2));
-		if(atoi($2) == 0 && strcmp($2, "0") != 0)
-			yyerror("number expected");
-		else cfg_parser->cfg->del_holddown = atoi($2);
-		free($2);
-	}
-	;
-server_keep_missing: VAR_KEEP_MISSING STRING_ARG
-	{
-		OUTYY(("P(server_keep_missing:%s)\n", $2));
-		if(atoi($2) == 0 && strcmp($2, "0") != 0)
-			yyerror("number expected");
-		else cfg_parser->cfg->keep_missing = atoi($2);
-		free($2);
 	}
 	;
 server_key_cache_size: VAR_KEY_CACHE_SIZE STRING_ARG

@@ -42,28 +42,16 @@
 #ifndef VALIDATOR_VAL_ANCHOR_H
 #define VALIDATOR_VAL_ANCHOR_H
 #include "util/rbtree.h"
-#include "util/locks.h"
 struct regional;
 struct trust_anchor;
 struct config_file;
 struct ub_packed_rrset_key;
-struct autr_point_data;
-struct autr_global_data;
 
 /**
  * Trust anchor store.
- * The tree must be locked, while no other locks (from trustanchors) are held.
- * And then an anchor searched for.  Which can be locked or deleted.  Then
- * the tree can be unlocked again.  This means you have to release the lock
- * on a trust anchor and look it up again to delete it.
  */
 struct val_anchors {
-	/** lock on trees */
-	lock_basic_t lock;
-	/** 
-	 * region where trust anchors are allocated.
-	 * Autotrust anchors are malloced so they can be updated. 
-	 */
+	/** region where trust anchors are allocated */
 	struct regional* region;
 	/**
 	 * Anchors are store in this tree. Sort order is chosen, so that
@@ -74,8 +62,6 @@ struct val_anchors {
 	rbtree_t* tree;
 	/** The DLV trust anchor (if one is configured, else NULL) */
 	struct trust_anchor* dlv_anchor;
-	/** Autotrust global data, anchors sorted by next probe time */
-	struct autr_global_data* autr;
 };
 
 /**
@@ -99,8 +85,6 @@ struct ta_key {
 struct trust_anchor {
 	/** rbtree node, key is this structure */
 	rbnode_t node;
-	/** lock on the entire anchor and its keys; for autotrust changes */
-	lock_basic_t lock;
 	/** name of this trust anchor */
 	uint8_t* name;
 	/** length of name */
@@ -114,8 +98,6 @@ struct trust_anchor {
 	 * It is allocated in the region.
 	 */
 	struct ta_key* keylist;
-	/** Autotrust anchor point data, or NULL */
-	struct autr_point_data* autr;
 	/** number of DSs in the keylist */
 	size_t numDS;
 	/** number of DNSKEYs in the keylist */
@@ -149,16 +131,6 @@ void anchors_delete(struct val_anchors* anchors);
 int anchors_apply_cfg(struct val_anchors* anchors, struct config_file* cfg);
 
 /**
- * Recalculate parent pointers.  The caller must hold the lock on the
- * anchors structure (say after removing an item from the rbtree).
- * Caller must not hold any locks on trust anchors.
- * After the call is complete the parent pointers are updated and an item
- * just removed is no longer referenced in parent pointers.
- * @param anchors: the structure to update.
- */
-void anchors_init_parents_locked(struct val_anchors* anchors);
-
-/**
  * Given a qname/qclass combination, find the trust anchor closest above it.
  * Or return NULL if none exists.
  *
@@ -166,7 +138,7 @@ void anchors_init_parents_locked(struct val_anchors* anchors);
  * @param qname: query name, uncompressed wireformat.
  * @param qname_len: length of qname.
  * @param qclass: class to query for.
- * @return the trust anchor or NULL if none is found. The anchor is locked.
+ * @return the trust anchor or NULL if none is found.
  */
 struct trust_anchor* anchors_lookup(struct val_anchors* anchors,
 	uint8_t* qname, size_t qname_len, uint16_t qclass);
@@ -178,7 +150,7 @@ struct trust_anchor* anchors_lookup(struct val_anchors* anchors,
  * @param namelabs: labels in name
  * @param namelen: length of name
  * @param dclass: class of trust anchor
- * @return NULL if not found. The anchor is locked.
+ * @return NULL if not found.
  */
 struct trust_anchor* anchor_find(struct val_anchors* anchors, 
 	uint8_t* name, int namelabs, size_t namelen, uint16_t dclass);

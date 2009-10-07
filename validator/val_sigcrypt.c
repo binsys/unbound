@@ -256,28 +256,10 @@ ds_digest_size_algo(struct ub_packed_rrset_key* k, size_t idx)
 		case LDNS_SHA256:
 			return SHA256_DIGEST_LENGTH;
 #endif
-#ifdef USE_GOST
-		case LDNS_HASH_GOST94:
-			if(EVP_get_digestbyname("md_gost94"))
-				return 32;
-			else	return 0;
-#endif
 		default: break;
 	}
 	return 0;
 }
-
-#ifdef USE_GOST
-/** Perform GOST94 hash */
-static int
-do_gost94(unsigned char* data, size_t len, unsigned char* dest)
-{
-	const EVP_MD* md = EVP_get_digestbyname("md_gost94");
-	if(!md) 
-		return 0;
-	return ldns_digest_evp(data, (unsigned int)len, dest, md);
-}
-#endif
 
 /**
  * Create a DS digest for a DNSKEY entry.
@@ -323,12 +305,6 @@ ds_create_dnskey_digest(struct module_env* env,
 			(void)SHA256((unsigned char*)ldns_buffer_begin(b),
 				ldns_buffer_limit(b), (unsigned char*)digest);
 			return 1;
-#endif
-#ifdef USE_GOST
-		case LDNS_HASH_GOST94:
-			if(do_gost94((unsigned char*)ldns_buffer_begin(b), 
-				ldns_buffer_limit(b), (unsigned char*)digest))
-				return 1;
 #endif
 		default: 
 			verbose(VERB_QUERY, "unknown DS digest algorithm %d", 
@@ -401,11 +377,6 @@ dnskey_algo_id_is_supported(int id)
 	case LDNS_RSASHA512:
 #endif
 		return 1;
-#ifdef USE_GOST
-	case LDNS_GOST:
-		/* we support GOST if it can be loaded */
-		return ldns_key_EVP_load_gost_id();
-#endif
 	default:
 		return 0;
 	}
@@ -1231,14 +1202,14 @@ setup_dsa_sig(unsigned char** sig, unsigned int* len)
  * Setup key and digest for verification. Adjust sig if necessary.
  *
  * @param algo: key algorithm
- * @param evp_key: EVP PKEY public key to create.
+ * @param evp_key: EVP PKEY public key to update.
  * @param digest_type: digest type to use
  * @param key: key to setup for.
  * @param keylen: length of key.
  * @return false on failure.
  */
 static int
-setup_key_digest(int algo, EVP_PKEY** evp_key, const EVP_MD** digest_type, 
+setup_key_digest(int algo, EVP_PKEY* evp_key, const EVP_MD** digest_type, 
 	unsigned char* key, size_t keylen)
 {
 	DSA* dsa;
@@ -1247,18 +1218,13 @@ setup_key_digest(int algo, EVP_PKEY** evp_key, const EVP_MD** digest_type,
 	switch(algo) {
 		case LDNS_DSA:
 		case LDNS_DSA_NSEC3:
-			*evp_key = EVP_PKEY_new();
-			if(!*evp_key) {
-				log_err("verify: malloc failure in crypto");
-				return sec_status_unchecked;
-			}
 			dsa = ldns_key_buf2dsa_raw(key, keylen);
 			if(!dsa) {
 				verbose(VERB_QUERY, "verify: "
 					"ldns_key_buf2dsa_raw failed");
 				return 0;
 			}
-			if(EVP_PKEY_assign_DSA(*evp_key, dsa) == 0) {
+			if(EVP_PKEY_assign_DSA(evp_key, dsa) == 0) {
 				verbose(VERB_QUERY, "verify: "
 					"EVP_PKEY_assign_DSA failed");
 				return 0;
@@ -1274,18 +1240,13 @@ setup_key_digest(int algo, EVP_PKEY** evp_key, const EVP_MD** digest_type,
 #if defined(HAVE_EVP_SHA512) && defined(USE_SHA2)
 		case LDNS_RSASHA512:
 #endif
-			*evp_key = EVP_PKEY_new();
-			if(!*evp_key) {
-				log_err("verify: malloc failure in crypto");
-				return sec_status_unchecked;
-			}
 			rsa = ldns_key_buf2rsa_raw(key, keylen);
 			if(!rsa) {
 				verbose(VERB_QUERY, "verify: "
 					"ldns_key_buf2rsa_raw SHA failed");
 				return 0;
 			}
-			if(EVP_PKEY_assign_RSA(*evp_key, rsa) == 0) {
+			if(EVP_PKEY_assign_RSA(evp_key, rsa) == 0) {
 				verbose(VERB_QUERY, "verify: "
 					"EVP_PKEY_assign_RSA SHA failed");
 				return 0;
@@ -1306,18 +1267,13 @@ setup_key_digest(int algo, EVP_PKEY** evp_key, const EVP_MD** digest_type,
 
 			break;
 		case LDNS_RSAMD5:
-			*evp_key = EVP_PKEY_new();
-			if(!*evp_key) {
-				log_err("verify: malloc failure in crypto");
-				return sec_status_unchecked;
-			}
 			rsa = ldns_key_buf2rsa_raw(key, keylen);
 			if(!rsa) {
 				verbose(VERB_QUERY, "verify: "
 					"ldns_key_buf2rsa_raw MD5 failed");
 				return 0;
 			}
-			if(EVP_PKEY_assign_RSA(*evp_key, rsa) == 0) {
+			if(EVP_PKEY_assign_RSA(evp_key, rsa) == 0) {
 				verbose(VERB_QUERY, "verify: "
 					"EVP_PKEY_assign_RSA MD5 failed");
 				return 0;
@@ -1325,22 +1281,6 @@ setup_key_digest(int algo, EVP_PKEY** evp_key, const EVP_MD** digest_type,
 			*digest_type = EVP_md5();
 
 			break;
-#ifdef USE_GOST
-		case LDNS_GOST:
-			*evp_key = ldns_gost2pkey_raw(key, keylen);
-			if(!*evp_key) {
-				verbose(VERB_QUERY, "verify: "
-					"ldns_gost2pkey_raw failed");
-				return 0;
-			}
-			*digest_type = EVP_get_digestbyname("md_gost94");
-			if(!*digest_type) {
-				verbose(VERB_QUERY, "verify: "
-					"EVP_getdigest md_gost94 failed");
-				return 0;
-			}
-			break;
-#endif
 		default:
 			verbose(VERB_QUERY, "verify: unknown algorithm %d", 
 				algo);
@@ -1368,9 +1308,13 @@ verify_canonrrset(ldns_buffer* buf, int algo, unsigned char* sigblock,
 	const EVP_MD *digest_type;
 	EVP_MD_CTX ctx;
 	int res, dofree = 0;
-	EVP_PKEY *evp_key = NULL;
-	
-	if(!setup_key_digest(algo, &evp_key, &digest_type, key, keylen)) {
+	EVP_PKEY *evp_key = EVP_PKEY_new();
+	if(!evp_key) {
+		log_err("verify: malloc failure in crypto");
+		return sec_status_unchecked;
+	}
+
+	if(!setup_key_digest(algo, evp_key, &digest_type, key, keylen)) {
 		verbose(VERB_QUERY, "verify: failed to setup key");
 		EVP_PKEY_free(evp_key);
 		return sec_status_bogus;

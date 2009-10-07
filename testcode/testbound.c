@@ -43,10 +43,7 @@
 #include "testcode/replay.h"
 #include "testcode/fake_event.h"
 #include "daemon/remote.h"
-#include "util/config_file.h"
 
-/** signal that this is a testbound compile */
-#define unbound_testbound 1
 /** 
  * include the main program from the unbound daemon.
  * rename main to daemon_main to call it
@@ -57,8 +54,8 @@
 
 /** maximum line length for lines in the replay file. */
 #define MAX_LINE_LEN 1024
-/** config files (removed at exit) */
-static struct config_strlist* cfgfiles = NULL;
+/** the config file (removed at exit) */
+static char cfgfile[MAX_LINE_LEN];
 
 /** give commandline usage for testbound. */
 static void
@@ -69,8 +66,6 @@ testbound_usage()
 	printf("-h      this help\n");
 	printf("-p file	playback text file\n");
 	printf("-2 	detect SHA256 support (exit code 0 or 1)\n");
-	printf("-g 	detect GOST support (exit code 0 or 1)\n");
-	printf("-s 	testbound self-test - unit test of testbound parts.\n");
 	printf("-o str  unbound commandline options separated by spaces.\n");
 	printf("Version %s\n", PACKAGE_VERSION);
 	printf("BSD licensed, see LICENSE file in source package.\n");
@@ -126,60 +121,27 @@ echo_cmdline(int argc, char* argv[])
 	fprintf(stderr, "\n");
 }
 
-/** spool autotrust file */
-static void
-spool_auto_file(FILE* in, int* lineno, FILE* cfg, char* id)
-{
-	char line[MAX_LINE_LEN];
-	char* parse;
-	FILE* spool;
-	/* find filename for new file */
-	while(isspace((int)*id))
-		id++;
-	if(strlen(id)==0) 
-		fatal_exit("AUTROTRUST_FILE must have id, line %d", *lineno);
-	id[strlen(id)-1]=0; /* remove newline */
-	fake_temp_file("_auto_", id, line, sizeof(line));
-	/* add option for the file */
-	fprintf(cfg, "server:	auto-trust-anchor-file: \"%s\"\n", line);
-	/* open file and spool to it */
-	spool = fopen(line, "w");
-	if(!spool) fatal_exit("could not open %s: %s", line, strerror(errno));
-	fprintf(stderr, "testbound is spooling key file: %s\n", line);
-	if(!cfg_strlist_insert(&cfgfiles, strdup(line))) 
-		fatal_exit("out of memory");
-	line[sizeof(line)-1] = 0;
-	while(fgets(line, MAX_LINE_LEN-1, in)) {
-		parse = line;
-		(*lineno)++;
-		while(isspace((int)*parse))
-			parse++;
-		if(strncmp(parse, "AUTOTRUST_END", 13) == 0) {
-			fclose(spool);
-			return;
-		}
-		fputs(line, spool);
-	}
-	fatal_exit("no AUTOTRUST_END in input file");
-}
-
 /** process config elements */
 static void
-setup_config(FILE* in, int* lineno, int* pass_argc, char* pass_argv[])
+setup_config(FILE* in, char* configfile, int* lineno,
+	int* pass_argc, char* pass_argv[])
 {
-	char configfile[MAX_LINE_LEN];
 	char line[MAX_LINE_LEN];
 	char* parse;
 	FILE* cfg;
-	fake_temp_file("_cfg", "", configfile, sizeof(configfile));
+#ifdef USE_WINSOCK
+	snprintf(configfile, MAX_LINE_LEN, "testbound_cfg_%u.tmp", 
+		(unsigned)getpid());
+#else
+	snprintf(configfile, MAX_LINE_LEN, "/tmp/testbound_cfg_%u.tmp", 
+		(unsigned)getpid());
+#endif
 	add_opts("-c", pass_argc, pass_argv);
 	add_opts(configfile, pass_argc, pass_argv);
 	cfg = fopen(configfile, "w");
 	if(!cfg) fatal_exit("could not open %s: %s", 
 			configfile, strerror(errno));
-	if(!cfg_strlist_insert(&cfgfiles, strdup(configfile))) 
-		fatal_exit("out of memory");
-	line[sizeof(line)-1] = 0;
+	line[MAX_LINE_LEN-1] = 0;
 	/* some basic settings to not pollute the host system */
 	fprintf(cfg, "server:	use-syslog: no\n");
 	fprintf(cfg, "		directory: \"\"\n");
@@ -198,10 +160,6 @@ setup_config(FILE* in, int* lineno, int* pass_argc, char* pass_argv[])
 			add_opts(parse+11, pass_argc, pass_argv);
 			continue;
 		}
-		if(strncmp(parse, "AUTOTRUST_FILE", 14) == 0) {
-			spool_auto_file(in, lineno, cfg, parse+14);
-			continue;
-		}
 		if(strncmp(parse, "CONFIG_END", 10) == 0) {
 			fclose(cfg);
 			return;
@@ -214,7 +172,8 @@ setup_config(FILE* in, int* lineno, int* pass_argc, char* pass_argv[])
 
 /** read playback file */
 static struct replay_scenario* 
-setup_playback(const char* filename, int* pass_argc, char* pass_argv[])
+setup_playback(const char* filename, char* configfile,
+	int* pass_argc, char* pass_argv[])
 {
 	struct replay_scenario* scen = NULL;
 	int lineno = 0;
@@ -225,7 +184,7 @@ setup_playback(const char* filename, int* pass_argc, char* pass_argv[])
 			perror(filename);
 			exit(1);
 		}
-		setup_config(in, &lineno, pass_argc, pass_argv);
+		setup_config(in, configfile, &lineno, pass_argc, pass_argv);
 		scen = replay_scenario_read(in, filename, &lineno);
 		fclose(in);
 		if(!scen)
@@ -239,13 +198,9 @@ setup_playback(const char* filename, int* pass_argc, char* pass_argv[])
 /** remove config file at exit */
 void remove_configfile(void)
 {
-	struct config_strlist* p;
-	for(p=cfgfiles; p; p=p->next)
-		unlink(p->str);
-	config_delstrlist(cfgfiles);
-	cfgfiles = NULL;
+	unlink(cfgfile);
 }
-
+	
 /**
  * Main fake event test program. Setup, teardown and report errors.
  * @param argc: arg count.
@@ -265,36 +220,18 @@ main(int argc, char* argv[])
 	log_init(NULL, 0, NULL);
 	log_info("Start of %s testbound program.", PACKAGE_STRING);
 	/* determine commandline options for the daemon */
+	cfgfile[0] = 0;
 	pass_argc = 1;
 	pass_argv[0] = "unbound";
 	add_opts("-d", &pass_argc, pass_argv);
-	while( (c=getopt(argc, argv, "2gho:p:s")) != -1) {
+	while( (c=getopt(argc, argv, "2ho:p:")) != -1) {
 		switch(c) {
-		case 's':
-			free(pass_argv[1]);
-			testbound_selftest();
-			printf("selftest successful\n");
-			exit(0);
 		case '2':
 #if defined(HAVE_EVP_SHA256) && defined(USE_SHA2)
 			printf("SHA256 supported\n");
 			exit(0);
 #else
 			printf("SHA256 not supported\n");
-			exit(1);
-#endif
-			break;
-		case 'g':
-#ifdef USE_GOST
-			if(ldns_key_EVP_load_gost_id()) {
-				printf("GOST supported\n");
-				exit(0);
-			} else {
-				printf("GOST not supported\n");
-				exit(1);
-			}
-#else
-			printf("GOST not supported\n");
 			exit(1);
 #endif
 			break;
@@ -321,7 +258,7 @@ main(int argc, char* argv[])
 		fatal_exit("atexit() failed: %s", strerror(errno));
 
 	/* setup test environment */
-	scen = setup_playback(playback_file, &pass_argc, pass_argv);
+	scen = setup_playback(playback_file, cfgfile, &pass_argc, pass_argv);
 	/* init fake event backend */
 	fake_event_init(scen);
 

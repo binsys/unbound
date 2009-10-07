@@ -1239,7 +1239,7 @@ nsec3_prove_wildcard(struct module_env* env, struct val_env* ve,
 
 /** test if list is all secure */
 static int
-list_is_secure(struct module_env* env, struct val_env* ve, 
+list_is_secure(struct module_env* env, struct val_env* ve,
 	struct ub_packed_rrset_key** list, size_t num,
 	struct key_entry_key* kkey)
 {

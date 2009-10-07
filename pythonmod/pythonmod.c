@@ -245,8 +245,6 @@ void pythonmod_deinit(struct module_env* env, int id)
 
       Py_Finalize();
    }
-   pe->fname = NULL;
-   free(pe);
 
    /* Module is deallocated in Python */
    env->modinfo[id] = NULL;

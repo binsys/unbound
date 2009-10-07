@@ -204,11 +204,6 @@ void worker_stat_timer_cb(void* ATTR_UNUSED(arg))
 	log_assert(0);
 }
 
-void worker_probe_timer_cb(void* ATTR_UNUSED(arg))
-{
-	log_assert(0);
-}
-
 /** keep track of lock id in lock-verify application */
 struct order_id {
         /** the thread id that created it */
@@ -232,10 +227,4 @@ int
 codeline_cmp(const void* a, const void* b)
 {
         return strcmp((const char*)a, (const char*)b);
-}
-
-int replay_var_compare(const void* ATTR_UNUSED(a), const void* ATTR_UNUSED(b))
-{
-        log_assert(0);
-        return 0;
 }

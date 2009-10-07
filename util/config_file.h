@@ -114,8 +114,6 @@ struct config_file {
 	/** automatic interface for incoming messages. Uses ipv6 remapping,
 	 * and recvmsg/sendmsg ancillary data to detect interfaces, boolean */
 	int if_automatic;
-	/** SO_RCVBUF size to set on port 53 UDP socket */
-	size_t socket_rcvbuf;
 
 	/** number of interfaces to open. If 0 default all interfaces. */
 	int num_ifs;
@@ -192,8 +190,6 @@ struct config_file {
 	struct config_strlist* trust_anchor_file_list;
 	/** list of trustanchor keys, linked list */
 	struct config_strlist* trust_anchor_list;
-	/** files with 5011 autotrust tracked keys */
-	struct config_strlist* auto_trust_anchor_file_list;
 	/** files with trusted DNSKEYs in named.conf format, list */
 	struct config_strlist* trusted_keys_file_list;
 	/** DLV anchor file */
@@ -223,12 +219,6 @@ struct config_file {
 	int val_permissive_mode;
 	/** nsec3 maximum iterations per key size, string */
 	char* val_nsec3_key_iterations;
-	/** autotrust add holddown time, in seconds */
-	unsigned int add_holddown;
-	/** autotrust del holddown time, in seconds */
-	unsigned int del_holddown;
-	/** autotrust keep_missing time, in seconds. 0 is forever. */
-	unsigned int keep_missing;
 
 	/** size of the key cache */
 	size_t key_cache_size;

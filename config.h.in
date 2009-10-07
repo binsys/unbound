@@ -31,18 +31,14 @@
 /* Define to 1 if you have the `chroot' function. */
 #undef HAVE_CHROOT
 
-/* Define to 1 if you have the `ctime_r' function. */
-#undef HAVE_CTIME_R
-
 /* Define to 1 if you have the `daemon' function. */
 #undef HAVE_DAEMON
 
-/* Define to 1 if you have the declaration of
-   `SSL_COMP_get_compression_methods', and to 0 if you don't. */
-#undef HAVE_DECL_SSL_COMP_GET_COMPRESSION_METHODS
-
 /* Define to 1 if you have the <dlfcn.h> header file. */
 #undef HAVE_DLFCN_H
+
+/* Define to 1 if you have the `ENGINE_load_gost' function. */
+#undef HAVE_ENGINE_LOAD_GOST
 
 /* Define to 1 if you have the `event_base_free' function. */
 #undef HAVE_EVENT_BASE_FREE
@@ -125,9 +121,6 @@
 /* if the function 'ioctlsocket' is available */
 #undef HAVE_IOCTLSOCKET
 
-/* Define to 1 if you have the <iphlpapi.h> header file. */
-#undef HAVE_IPHLPAPI_H
-
 /* Define to 1 if you have the `kill' function. */
 #undef HAVE_KILL
 
@@ -155,15 +148,6 @@
 
 /* Define to 1 if you have the <netinet/in.h> header file. */
 #undef HAVE_NETINET_IN_H
-
-/* Define to 1 if you have the `OPENSSL_config' function. */
-#undef HAVE_OPENSSL_CONFIG
-
-/* Define to 1 if you have the <openssl/conf.h> header file. */
-#undef HAVE_OPENSSL_CONF_H
-
-/* Define to 1 if you have the <openssl/engine.h> header file. */
-#undef HAVE_OPENSSL_ENGINE_H
 
 /* Define to 1 if you have the <openssl/err.h> header file. */
 #undef HAVE_OPENSSL_ERR_H
@@ -330,9 +314,6 @@
 /* Define to 1 if you have the `_beginthreadex' function. */
 #undef HAVE__BEGINTHREADEX
 
-/* if lex has yylex_destroy */
-#undef LEX_HAS_YYLEX_DESTROY
-
 /* Define to the sub-directory in which libtool stores uninstalled libraries.
    */
 #undef LT_OBJDIR
@@ -419,9 +400,6 @@
 
 /* define this to enable debug checks. */
 #undef UNBOUND_DEBUG
-
-/* Define this to enable GOST support. */
-#undef USE_GOST
 
 /* Define if you want to use internal select based events */
 #undef USE_MINI_EVENT
@@ -653,14 +631,6 @@
 #include <openssl/rand.h>
 #endif
 
-#ifdef HAVE_OPENSSL_CONF_H
-#include <openssl/conf.h>
-#endif
-
-#ifdef HAVE_OPENSSL_ENGINE_H
-#include <openssl/engine.h>
-#endif
-
 
  
 #ifdef HAVE_ATTR_FORMAT
@@ -771,11 +741,6 @@ struct tm *gmtime_r(const time_t *timep, struct tm *result);
 #endif /* IPV6_MIN_MTU */
 
 
-
-#ifndef HAVE_CTIME_R
-#define ctime_r unbound_ctime_r
-char *ctime_r(const time_t *timep, char *buf);
-#endif
 
 #if defined(HAVE_EVENT_H) && !defined(HAVE_EVENT_BASE_ONCE) && (defined(HAVE_PTHREAD) || defined(HAVE_SOLARIS_THREADS))
    /* using version of libevent that is not threadsafe. */

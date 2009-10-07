@@ -59,6 +59,8 @@ int ub_c_parse(void);
 int ub_c_lex(void);
 /** wrap function */
 int ub_c_wrap(void);
+/** print error with file and line number */
+void ub_c_error(const char *message);
 
 /** init ports possible for use */
 static void init_outgoing_availports(int* array, int num);
@@ -123,7 +125,6 @@ config_create()
 	cfg->root_hints = NULL;
 	cfg->do_daemonize = 1;
 	cfg->if_automatic = 0;
-	cfg->socket_rcvbuf = 0;
 	cfg->num_ifs = 0;
 	cfg->ifs = NULL;
 	cfg->num_out_ifs = 0;
@@ -144,7 +145,6 @@ config_create()
 	cfg->hide_version = 0;
 	cfg->identity = NULL;
 	cfg->version = NULL;
-	cfg->auto_trust_anchor_file_list = NULL;
 	cfg->trust_anchor_file_list = NULL;
 	cfg->trust_anchor_list = NULL;
 	cfg->trusted_keys_file_list = NULL;
@@ -157,9 +157,6 @@ config_create()
 	cfg->val_clean_additional = 1;
 	cfg->val_log_level = 0;
 	cfg->val_permissive_mode = 0;
-	cfg->add_holddown = 30*24*3600;
-	cfg->del_holddown = 30*24*3600;
-	cfg->keep_missing = 366*24*3600; /* one year plus a little leeway */
 	cfg->key_cache_size = 4 * 1024 * 1024;
 	cfg->key_cache_slabs = 4;
 	cfg->neg_cache_size = 1 * 1024 * 1024;
@@ -285,8 +282,6 @@ int config_set_option(struct config_file* cfg, const char* opt,
 	} else if(strcmp(opt, "jostle-timeout:") == 0) {
 		IS_NUMBER_OR_ZERO;
 		cfg->jostle_time = (size_t)atoi(val);
-	} else if(strcmp(opt, "so-rcvbuf:") == 0) {
-		return cfg_parse_memsize(val, &cfg->socket_rcvbuf);
 	} else if(strcmp(opt, "rrset-cache-size:") == 0) {
 		return cfg_parse_memsize(val, &cfg->rrset_cache_size);
 	} else if(strcmp(opt, "rrset-cache-slabs:") == 0) {
@@ -348,9 +343,6 @@ int config_set_option(struct config_file* cfg, const char* opt,
 		cfg->donotquery_localhost = (strcmp(val, "yes") == 0);
 	} else if(strcmp(opt, "do-not-query-address:") == 0) {
 		return cfg_strlist_insert(&cfg->donotqueryaddrs, strdup(val));
-	} else if(strcmp(opt, "auto-trust-anchor-file:") == 0) {
-		return cfg_strlist_insert(&cfg->auto_trust_anchor_file_list, 
-			strdup(val));
 	} else if(strcmp(opt, "trust-anchor-file:") == 0) {
 		return cfg_strlist_insert(&cfg->trust_anchor_file_list, 
 			strdup(val));
@@ -393,15 +385,6 @@ int config_set_option(struct config_file* cfg, const char* opt,
 	} else if(strcmp(opt, "val-nsec3-keysize-iterations:") == 0) {
 		free(cfg->val_nsec3_key_iterations);
 		return (cfg->val_nsec3_key_iterations = strdup(val)) != NULL;
-	} else if(strcmp(opt, "add-holddown:") == 0) {
-		IS_NUMBER_OR_ZERO;
-		cfg->add_holddown = (unsigned)atoi(val);
-	} else if(strcmp(opt, "del-holddown:") == 0) {
-		IS_NUMBER_OR_ZERO;
-		cfg->del_holddown = (unsigned)atoi(val);
-	} else if(strcmp(opt, "keep-missing:") == 0) {
-		IS_NUMBER_OR_ZERO;
-		cfg->keep_missing = (unsigned)atoi(val);
 	} else if(strcmp(opt, "key-cache-size:") == 0) {
 		return cfg_parse_memsize(val, &cfg->key_cache_size);
 	} else if(strcmp(opt, "key-cache-slabs:") == 0) {
@@ -556,7 +539,6 @@ config_delete(struct config_file* cfg)
 	free(cfg->outgoing_avail_ports);
 	config_delstrlist(cfg->private_address);
 	config_delstrlist(cfg->private_domain);
-	config_delstrlist(cfg->auto_trust_anchor_file_list);
 	config_delstrlist(cfg->trust_anchor_file_list);
 	config_delstrlist(cfg->trusted_keys_file_list);
 	config_delstrlist(cfg->trust_anchor_list);

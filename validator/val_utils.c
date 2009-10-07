@@ -416,9 +416,9 @@ verify_dnskeys_with_ds_rr(struct module_env* env, struct val_env* ve,
 	return sec_status_bogus;
 }
 
-enum sec_status 
-val_verify_DNSKEY_with_DS(struct module_env* env, struct val_env* ve,
-	struct ub_packed_rrset_key* dnskey_rrset,
+struct key_entry_key* 
+val_verify_new_DNSKEYs(struct regional* region, struct module_env* env, 
+	struct val_env* ve, struct ub_packed_rrset_key* dnskey_rrset, 
 	struct ub_packed_rrset_key* ds_rrset)
 {
 	/* as long as this is false, we can consider this DS rrset to be
@@ -433,11 +433,13 @@ val_verify_DNSKEY_with_DS(struct module_env* env, struct val_env* ve,
 		!= 0) {
 		verbose(VERB_QUERY, "DNSKEY RRset did not match DS RRset "
 			"by name");
-		return sec_status_bogus;
+		return key_entry_create_bad(region, ds_rrset->rk.dname,
+			ds_rrset->rk.dname_len, 
+			ntohs(ds_rrset->rk.rrset_class));
 	}
 
 	num = rrset_get_count(ds_rrset);
-	/* find favorite algo, for now, highest number supported */
+	/* find favority algo, for now, highest number supported */
 	for(i=0; i<num; i++) {
 		if(!ds_digest_algo_is_supported(ds_rrset, i) ||
 			!ds_key_algo_is_supported(ds_rrset, i)) {
@@ -465,7 +467,10 @@ val_verify_DNSKEY_with_DS(struct module_env* env, struct val_env* ve,
 			ds_rrset, i);
 		if(sec == sec_status_secure) {
 			verbose(VERB_ALGO, "DS matched DNSKEY.");
-			return sec_status_secure;
+			return key_entry_create_rrset(region, 
+				ds_rrset->rk.dname, ds_rrset->rk.dname_len,
+				ntohs(ds_rrset->rk.rrset_class), dnskey_rrset,
+				*env->now);
 		}
 	}
 
@@ -475,32 +480,13 @@ val_verify_DNSKEY_with_DS(struct module_env* env, struct val_env* ve,
 	if(!has_useful_ds) {
 		verbose(VERB_ALGO, "No usable DS records were found -- "
 			"treating as insecure.");
-		return sec_status_insecure;
-	}
-	/* If any were understandable, then it is bad. */
-	verbose(VERB_QUERY, "Failed to match any usable DS to a DNSKEY.");
-	return sec_status_bogus;
-}
-
-struct key_entry_key* 
-val_verify_new_DNSKEYs(struct regional* region, struct module_env* env, 
-	struct val_env* ve, struct ub_packed_rrset_key* dnskey_rrset, 
-	struct ub_packed_rrset_key* ds_rrset)
-{
-	enum sec_status sec = val_verify_DNSKEY_with_DS(env, ve, 
-		dnskey_rrset, ds_rrset);
-
-	if(sec == sec_status_secure) {
-		return key_entry_create_rrset(region, 
-			ds_rrset->rk.dname, ds_rrset->rk.dname_len,
-			ntohs(ds_rrset->rk.rrset_class), dnskey_rrset,
-			*env->now);
-	} else if(sec == sec_status_insecure) {
 		return key_entry_create_null(region, ds_rrset->rk.dname,
 			ds_rrset->rk.dname_len, 
 			ntohs(ds_rrset->rk.rrset_class),
 			rrset_get_ttl(ds_rrset), *env->now);
-	} 
+	}
+	/* If any were understandable, then it is bad. */
+	verbose(VERB_QUERY, "Failed to match any usable DS to a DNSKEY.");
 	return key_entry_create_bad(region, ds_rrset->rk.dname,
 		ds_rrset->rk.dname_len, ntohs(ds_rrset->rk.rrset_class));
 }
@@ -726,17 +712,6 @@ val_check_nonsecure(struct val_env* ve, struct reply_info* rep)
 	}
 }
 
-/** check no anchor and unlock */
-static int
-check_no_anchor(struct val_anchors* anchors, uint8_t* nm, size_t l, uint16_t c)
-{
-	struct trust_anchor* ta;
-	if((ta=anchors_lookup(anchors, nm, l, c))) {
-		lock_basic_unlock(&ta->lock);
-	}
-	return !ta;
-}
-
 void 
 val_mark_indeterminate(struct reply_info* rep, struct val_anchors* anchors, 
 	struct rrset_cache* r, struct module_env* env)
@@ -746,7 +721,7 @@ val_mark_indeterminate(struct reply_info* rep, struct val_anchors* anchors,
 	for(i=0; i<rep->rrset_count; i++) {
 		d = (struct packed_rrset_data*)rep->rrsets[i]->entry.data;
 		if(d->security == sec_status_unchecked &&
-		   check_no_anchor(anchors, rep->rrsets[i]->rk.dname,
+		   !anchors_lookup(anchors, rep->rrsets[i]->rk.dname,
 			rep->rrsets[i]->rk.dname_len, 
 			ntohs(rep->rrsets[i]->rk.rrset_class))) 
 		{ 	
@@ -804,36 +779,4 @@ val_classification_to_string(enum val_classification subtype)
 		default:
 			return "bad_val_classification";
 	}
-}
-
-/** log a sock_list entry */
-static void
-sock_list_logentry(enum verbosity_value v, const char* s, struct sock_list* p)
-{
-	if(p->len)
-		log_addr(v, s, &p->addr, p->len);
-	else	verbose(v, "%s cache", s);
-}
-
-void val_blacklist(struct sock_list** blacklist, struct regional* region,
-	struct sock_list* origin, int cross)
-{
-	/* debug printout */
-	if(verbosity >= VERB_ALGO) {
-		struct sock_list* p;
-		for(p=*blacklist; p; p=p->next)
-			sock_list_logentry(VERB_ALGO, "blacklist", p);
-		if(!origin)
-			verbose(VERB_ALGO, "blacklist add: cache");
-		for(p=origin; p; p=p->next)
-			sock_list_logentry(VERB_ALGO, "blacklist add", p);
-	}
-	/* blacklist the IPs or the cache */
-	if(!origin) {
-		/* only add if nothing there. anything else also stops cache*/
-		if(!*blacklist)
-			sock_list_insert(blacklist, NULL, 0, region);
-	} else if(!cross)
-		sock_list_prepend(blacklist, origin);
-	else	sock_list_merge(blacklist, region, origin);
 }

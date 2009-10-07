@@ -63,15 +63,6 @@ static int sig_record_quit = 0;
 /** How many reload requests happened. */
 static int sig_record_reload = 0;
 
-#if HAVE_DECL_SSL_COMP_GET_COMPRESSION_METHODS
-/** cleaner ssl memory freeup */
-static void* comp_meth = NULL;
-#endif
-#ifdef LEX_HAS_YYLEX_DESTROY
-/** remove buffers for parsing and init */
-void ub_c_lex_destroy(void);
-#endif
-
 /** used when no other sighandling happens, so we don't die
   * when multiple signals in quick succession are sent to us. 
   * @param sig: signal number.
@@ -174,17 +165,7 @@ daemon_init()
 	checklock_start();
 	ERR_load_crypto_strings();
 	ERR_load_SSL_strings();
-#ifdef HAVE_OPENSSL_CONFIG
-	OPENSSL_config("unbound");
-#endif
-#ifdef USE_GOST
-	(void)ldns_key_EVP_load_gost_id();
-#endif
 	OpenSSL_add_all_algorithms();
-#if HAVE_DECL_SSL_COMP_GET_COMPRESSION_METHODS
-	/* grab the COMP method ptr because openssl leaks it */
-	comp_meth = (void*)SSL_COMP_get_compression_methods();
-#endif
 	(void)SSL_library_init();
 #ifdef HAVE_TZSET
 	/* init timezone info while we are not chrooted yet */
@@ -511,19 +492,10 @@ daemon_delete(struct daemon* daemon)
 	free(daemon->pidfile);
 	free(daemon->env);
 	free(daemon);
-#ifdef LEX_HAS_YYLEX_DESTROY
-	/* lex cleanup */
-	ub_c_lex_destroy();
-#endif
 	/* libcrypto cleanup */
-#if HAVE_DECL_SSL_COMP_GET_COMPRESSION_METHODS
-	sk_SSL_COMP_free(comp_meth);
-#endif
-#ifdef HAVE_OPENSSL_CONFIG
+	/* CONF_modules_unload(1); */
 	EVP_cleanup();
-	ENGINE_cleanup();
-	CONF_modules_free();
-#endif
+	/* ENGINE_cleanup(); */
 	CRYPTO_cleanup_all_ex_data(); /* safe, no more threads right now */
 	ERR_remove_state(0);
 	ERR_free_strings();

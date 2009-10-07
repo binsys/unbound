@@ -142,7 +142,6 @@ do-daemonize{COLON}		{ YDVAR(1, VAR_DO_DAEMONIZE) }
 interface{COLON}		{ YDVAR(1, VAR_INTERFACE) }
 outgoing-interface{COLON}	{ YDVAR(1, VAR_OUTGOING_INTERFACE) }
 interface-automatic{COLON}	{ YDVAR(1, VAR_INTERFACE_AUTOMATIC) }
-so-rcvbuf{COLON}		{ YDVAR(1, VAR_SO_RCVBUF) }
 chroot{COLON}			{ YDVAR(1, VAR_CHROOT) }
 username{COLON}			{ YDVAR(1, VAR_USERNAME) }
 directory{COLON}		{ YDVAR(1, VAR_DIRECTORY) }
@@ -192,7 +191,6 @@ module-config{COLON}     	{ YDVAR(1, VAR_MODULE_CONF) }
 dlv-anchor{COLON}		{ YDVAR(1, VAR_DLV_ANCHOR) }
 dlv-anchor-file{COLON}		{ YDVAR(1, VAR_DLV_ANCHOR_FILE) }
 trust-anchor-file{COLON}	{ YDVAR(1, VAR_TRUST_ANCHOR_FILE) }
-auto-trust-anchor-file{COLON}	{ YDVAR(1, VAR_AUTO_TRUST_ANCHOR_FILE) }
 trusted-keys-file{COLON}	{ YDVAR(1, VAR_TRUSTED_KEYS_FILE) }
 trust-anchor{COLON}		{ YDVAR(1, VAR_TRUST_ANCHOR) }
 val-override-date{COLON}	{ YDVAR(1, VAR_VAL_OVERRIDE_DATE) }
@@ -207,9 +205,6 @@ key-cache-slabs{COLON}		{ YDVAR(1, VAR_KEY_CACHE_SLABS) }
 neg-cache-size{COLON}		{ YDVAR(1, VAR_NEG_CACHE_SIZE) }
 val-nsec3-keysize-iterations{COLON}	{ 
 				  YDVAR(1, VAR_VAL_NSEC3_KEYSIZE_ITERATIONS) }
-add-holddown{COLON}		{ YDVAR(1, VAR_ADD_HOLDDOWN) }
-del-holddown{COLON}		{ YDVAR(1, VAR_DEL_HOLDDOWN) }
-keep-missing{COLON}		{ YDVAR(1, VAR_KEEP_MISSING) }
 use-syslog{COLON}		{ YDVAR(1, VAR_USE_SYSLOG) }
 log-time-ascii{COLON}		{ YDVAR(1, VAR_LOG_TIME_ASCII) }
 local-zone{COLON}		{ YDVAR(2, VAR_LOCAL_ZONE) }

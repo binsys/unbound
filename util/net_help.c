@@ -41,8 +41,6 @@
 #include "util/net_help.h"
 #include "util/log.h"
 #include "util/data/dname.h"
-#include "util/module.h"
-#include "util/regional.h"
 #include <fcntl.h>
 
 /** max length of an IP address (the address portion) that we allow */
@@ -489,55 +487,4 @@ addr_is_ip4mapped(struct sockaddr_storage* addr, socklen_t addrlen)
 	/* s is 16 octet ipv6 address string */
 	s = (uint8_t*)&((struct sockaddr_in6*)addr)->sin6_addr;
 	return (memcmp(s, map_prefix, 12) == 0);
-}
-
-void sock_list_insert(struct sock_list** list, struct sockaddr_storage* addr,
-	socklen_t len, struct regional* region)
-{
-	struct sock_list* add = (struct sock_list*)regional_alloc(region,
-		sizeof(add->next) + sizeof(add->len) + (size_t)len);
-	if(!add) {
-		log_err("out of memory in socketlist insert");
-		return;
-	}
-	log_assert(list);
-	add->next = *list;
-	add->len = len;
-	*list = add;
-	if(len) memcpy(&add->addr, addr, len);
-}
-
-void sock_list_prepend(struct sock_list** list, struct sock_list* add)
-{
-	struct sock_list* last = add;
-	if(!last) 
-		return;
-	while(last->next)
-		last = last->next;
-	last->next = *list;
-	*list = add;
-}
-
-int sock_list_find(struct sock_list* list, struct sockaddr_storage* addr,
-        socklen_t len)
-{
-	while(list) {
-		if(len == list->len) {
-			if(len == 0 || sockaddr_cmp_addr(addr, len, 
-				&list->addr, list->len) == 0)
-				return 1;
-		}
-		list = list->next;
-	}
-	return 0;
-}
-
-void sock_list_merge(struct sock_list** list, struct regional* region,
-	struct sock_list* add)
-{
-	struct sock_list* p;
-	for(p=add; p; p=p->next) {
-		if(!sock_list_find(*list, &p->addr, p->len))
-			sock_list_insert(list, &p->addr, p->len, region);
-	}
 }

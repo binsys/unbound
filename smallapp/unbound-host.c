@@ -41,13 +41,6 @@
  */
 
 #include "config.h"
-/* remove alloc checks, not in this part of the code */
-#ifdef UNBOUND_ALLOC_STATS
-#undef malloc
-#undef calloc
-#undef free
-#undef realloc
-#endif
 #include "libunbound/unbound.h"
 #include <ldns/ldns.h>
 
@@ -440,6 +433,7 @@ int main(int argc, char* argv[])
 			debuglevel++;
 			if(debuglevel < 2) 
 				debuglevel = 2; /* at least VERB_DETAIL */
+			check_ub_res(ub_ctx_debuglevel(ctx, debuglevel));
 			break;
 		case 'r':
 			check_ub_res(ub_ctx_resolvconf(ctx, "/etc/resolv.conf"));
@@ -465,8 +459,6 @@ int main(int argc, char* argv[])
 			usage();
 		}
 	}
-	if(debuglevel != 0) /* set after possible -C options */
-		check_ub_res(ub_ctx_debuglevel(ctx, debuglevel));
 	argc -= optind;
 	argv += optind;
 	if(argc != 1)

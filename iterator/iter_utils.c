@@ -61,11 +61,6 @@
 #include "util/fptr_wlist.h"
 #include "validator/val_anchor.h"
 
-/** time when nameserver glue is said to be 'recent' */
-#define SUSPICION_RECENT_EXPIRY 86400
-/** penalty to validation failed blacklisted IPs */
-#define BLACKLIST_PENALTY (USEFUL_SERVER_TOP_TIMEOUT*3)
-
 /** fillup fetch policy array */
 static void
 fetch_fill(struct iter_env* ie, const char* str)
@@ -156,8 +151,6 @@ iter_apply_cfg(struct iter_env* iter_env, struct config_file* cfg)
  *		values 0 .. 49 are not used, unless that is changed.
  *	USEFUL_SERVER_TOP_TIMEOUT
  *		This value exactly is given for unresponsive blacklisted.
- *	USEFUL_SERVER_TOP_TIMEOUT+1
- *		For non-blacklisted servers: huge timeout, but has traffic.
  *	USEFUL_SERVER_TOP_TIMEOUT ..
  *		dnsseclame servers get penalty
  *	USEFUL_SERVER_TOP_TIMEOUT*2 ..
@@ -165,7 +158,6 @@ iter_apply_cfg(struct iter_env* iter_env, struct config_file* cfg)
  *	UNKNOWN_SERVER_NICENESS 
  *		If no information is known about the server, this is
  *		returned. 376 msec or so.
- *	+BLACKLIST_PENALTY (of USEFUL_TOP_TIMEOUT*3) for dnssec failed IPs.
  *
  * When a final value is chosen that is dnsseclame ; dnsseclameness checking
  * is turned off (so we do not discard the reply).
@@ -178,7 +170,7 @@ iter_filter_unsuitable(struct iter_env* iter_env, struct module_env* env,
 	uint8_t* name, size_t namelen, uint16_t qtype, uint32_t now, 
 	struct delegpt_addr* a)
 {
-	int rtt, lame, reclame, dnsseclame, lost;
+	int rtt, lame, reclame, dnsseclame;
 	if(a->bogus)
 		return -1; /* address of server is bogus */
 	if(donotq_lookup(iter_env->donotq, &a->addr, a->addrlen)) {
@@ -190,7 +182,7 @@ iter_filter_unsuitable(struct iter_env* iter_env, struct module_env* env,
 	/* check lameness - need zone , class info */
 	if(infra_get_lame_rtt(env->infra_cache, &a->addr, a->addrlen, 
 		name, namelen, qtype, &lame, &dnsseclame, &reclame, 
-		&rtt, &lost, now)) {
+		&rtt, now)) {
 		log_addr(VERB_ALGO, "servselect", &a->addr, a->addrlen);
 		verbose(VERB_ALGO, "   rtt=%d%s%s%s", rtt,
 			lame?" LAME":"",
@@ -198,12 +190,9 @@ iter_filter_unsuitable(struct iter_env* iter_env, struct module_env* env,
 			reclame?" REC_LAME":"");
 		if(lame)
 			return -1; /* server is lame */
-		else if(rtt >= USEFUL_SERVER_TOP_TIMEOUT && 
-			lost >= USEFUL_SERVER_MAX_LOST)
+		else if(rtt >= USEFUL_SERVER_TOP_TIMEOUT)
 				/* server is unresponsive */
 			return USEFUL_SERVER_TOP_TIMEOUT; 
-		else if(rtt >= USEFUL_SERVER_TOP_TIMEOUT) /* not blacklisted*/
-			return USEFUL_SERVER_TOP_TIMEOUT+1; 
 		else if(reclame)
 			return rtt+USEFUL_SERVER_TOP_TIMEOUT*2; /* nonpref */
 		else if(dnsseclame )
@@ -218,7 +207,7 @@ iter_filter_unsuitable(struct iter_env* iter_env, struct module_env* env,
 static int
 iter_fill_rtt(struct iter_env* iter_env, struct module_env* env,
 	uint8_t* name, size_t namelen, uint16_t qtype, uint32_t now, 
-	struct delegpt* dp, int* best_rtt, struct sock_list* blacklist)
+	struct delegpt* dp, int* best_rtt)
 {
 	int got_it = 0;
 	struct delegpt_addr* a;
@@ -228,9 +217,6 @@ iter_fill_rtt(struct iter_env* iter_env, struct module_env* env,
 		a->sel_rtt = iter_filter_unsuitable(iter_env, env, 
 			name, namelen, qtype, now, a);
 		if(a->sel_rtt != -1) {
-			if(sock_list_find(blacklist, &a->addr, a->addrlen))
-				a->sel_rtt += BLACKLIST_PENALTY;
-
 			if(!got_it) {
 				*best_rtt = a->sel_rtt;
 				got_it = 1;
@@ -247,23 +233,20 @@ iter_fill_rtt(struct iter_env* iter_env, struct module_env* env,
 static int
 iter_filter_order(struct iter_env* iter_env, struct module_env* env,
 	uint8_t* name, size_t namelen, uint16_t qtype, uint32_t now, 
-	struct delegpt* dp, int* selected_rtt, int open_target, 
-	struct sock_list* blacklist)
+	struct delegpt* dp, int* selected_rtt, int open_target)
 {
 	int got_num = 0, low_rtt = 0, swap_to_front;
 	struct delegpt_addr* a, *n, *prev=NULL;
 
 	/* fillup sel_rtt and find best rtt in the bunch */
 	got_num = iter_fill_rtt(iter_env, env, name, namelen, qtype, now, dp, 
-		&low_rtt, blacklist);
+		&low_rtt);
 	if(got_num == 0) 
 		return 0;
 	if(low_rtt >= USEFUL_SERVER_TOP_TIMEOUT &&
-		(delegpt_count_missing_targets(dp) > 0 || open_target > 0)) {
-		verbose(VERB_ALGO, "Bad choices, trying to get more choice");
+		(delegpt_count_missing_targets(dp) > 0 || open_target > 0))
 		return 0; /* we want more choice. The best choice is a bad one.
 			     return 0 to force the caller to fetch more */
-	}
 
 	got_num = 0;
 	a = dp->result_list;
@@ -303,13 +286,13 @@ struct delegpt_addr*
 iter_server_selection(struct iter_env* iter_env, 
 	struct module_env* env, struct delegpt* dp, 
 	uint8_t* name, size_t namelen, uint16_t qtype, int* dnssec_expected,
-	int* chase_to_rd, int open_target, struct sock_list* blacklist)
+	int* chase_to_rd, int open_target)
 {
 	int sel;
 	int selrtt;
 	struct delegpt_addr* a, *prev;
 	int num = iter_filter_order(iter_env, env, name, namelen, qtype,
-		*env->now, dp, &selrtt, open_target, blacklist);
+		*env->now, dp, &selrtt, open_target);
 
 	if(num == 0)
 		return NULL;
@@ -414,54 +397,6 @@ iter_ns_probability(struct ub_randstate* rnd, int n, int m)
 	return (sel < n);
 }
 
-int iter_suspect_exists(struct query_info* qinfo, struct delegpt* dp,
-        struct module_env* env)
-{
-	struct ub_packed_rrset_key* r;
-	if(qinfo->qtype != LDNS_RR_TYPE_A && qinfo->qtype != LDNS_RR_TYPE_AAAA)
-		return 0; /* not glue type */
-	if(!dname_subdomain_c(qinfo->qname, dp->name))
-		return 0; /* not in-zone */
-	if(!delegpt_find_ns(dp, qinfo->qname, qinfo->qname_len))
-		return 0; /* not glue */
-
-	/* do we suspect that it exists? lookup with time=0 */
-	r = rrset_cache_lookup(env->rrset_cache, qinfo->qname, 
-		qinfo->qname_len, qinfo->qtype, qinfo->qclass, 0, 0, 0);
-	if(r) {
-		struct packed_rrset_data* d = (struct packed_rrset_data*)
-			r->entry.data;
-		/* if it is valid, no need for queries to parent zone */
-		if(*env->now <= d->ttl) {
-			lock_rw_unlock(&r->entry.lock);
-			return 0;
-		}
-		/* was it recently expired? */
-		if( (*env->now - d->ttl) <= SUSPICION_RECENT_EXPIRY) {
-			verbose(VERB_ALGO, "suspect glue at parent: "
-				"rrset recently expired");
-			lock_rw_unlock(&r->entry.lock);
-			return 1;
-		}
-		lock_rw_unlock(&r->entry.lock);
-	}
-
-	/* so, qinfo not there, does the other A/AAAA type exist in cache? */
-	r=rrset_cache_lookup(env->rrset_cache, qinfo->qname, qinfo->qname_len,
-	  (qinfo->qtype==LDNS_RR_TYPE_A)?LDNS_RR_TYPE_AAAA:LDNS_RR_TYPE_A,
-	  qinfo->qclass, 0, *env->now, 0);
-	if(r) {
-		/* it exists and explains why the glue is there */
-		lock_rw_unlock(&r->entry.lock);
-		return 0;
-	}
-
-	/* neither exist, so logically, one should exist for a nameserver */
-	verbose(VERB_ALGO, "suspect glue at parent: "
-		"neither A nor AAAA exist in cache");
-	return 1;
-}
-
 /** detect dependency cycle for query and target */
 static int
 causes_cycle(struct module_qstate* qstate, uint8_t* name, size_t namelen,
@@ -506,19 +441,19 @@ iter_dp_is_useless(struct query_info* qinfo, uint16_t qflags,
 {
 	struct delegpt_ns* ns;
 	/* check:
-	 *      o RD qflag is off.
-	 *      o no addresses are provided.
 	 *      o all NS items are required glue.
-	 * OR
-	 *      o RD qflag is off.
 	 *      o no addresses are provided.
+	 *      o RD qflag is on.
+	 * OR
+	 *      o no addresses are provided.
+	 *      o RD qflag is on.
 	 *      o the query is for one of the nameservers in dp,
 	 *        and that nameserver is a glue-name for this dp.
 	 */
 	if(!(qflags&BIT_RD))
 		return 0;
 	/* either available or unused targets */
-	if(dp->usable_list || dp->result_list)
+	if(dp->usable_list || dp->result_list) 
 		return 0;
 	
 	/* see if query is for one of the nameservers, which is glue */
@@ -541,16 +476,13 @@ int
 iter_indicates_dnssec(struct module_env* env, struct delegpt* dp,
         struct dns_msg* msg, uint16_t dclass)
 {
-	struct trust_anchor* a;
 	/* information not available, !env->anchors can be common */
 	if(!env || !env->anchors || !dp || !dp->name)
 		return 0;
 	/* a trust anchor exists with this name, RRSIGs expected */
-	if((a=anchor_find(env->anchors, dp->name, dp->namelabs, dp->namelen,
-		dclass))) {
-		lock_basic_unlock(&a->lock);
+	if(anchor_find(env->anchors, dp->name, dp->namelabs, dp->namelen,
+		dclass))
 		return 1;
-	}
 	/* see if DS rrset was given, in AUTH section */
 	if(msg && msg->rep &&
 		reply_find_rrset_section_ns(msg->rep, dp->name, dp->namelen,
@@ -613,11 +545,6 @@ int iter_msg_from_zone(struct dns_msg* msg, struct delegpt* dp,
 		LDNS_RR_TYPE_NS, dclass) ||
 	   reply_find_rrset_section_ns(msg->rep, dp->name, dp->namelen,
 		LDNS_RR_TYPE_NS, dclass))
-		return 1;
-	/* a DNSKEY set is expected at the zone apex as well */
-	/* this is for 'minimal responses' for DNSKEYs */
-	if(reply_find_rrset_section_an(msg->rep, dp->name, dp->namelen,
-		LDNS_RR_TYPE_DNSKEY, dclass))
 		return 1;
 	return 0;
 }

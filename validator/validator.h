@@ -56,9 +56,6 @@ struct val_neg_cache;
  */
 #define NULL_KEY_TTL	900 /* seconds */
 
-/** max number of query restarts, number of IPs to probe */
-#define VAL_MAX_RESTART_COUNT 5
-
 /**
  * Global state for the validator. 
  */
@@ -154,13 +151,6 @@ struct val_qstate {
 	struct dns_msg* orig_msg;
 
 	/**
-	 * The query restart count
-	 */
-	int restart_count;
-	/** The blacklist saved for chainoftrust elements */
-	struct sock_list* chain_blacklist;
-
-	/**
 	 * The query name we have chased to; qname after following CNAMEs
 	 */
 	struct query_info qchase;
@@ -187,12 +177,8 @@ struct val_qstate {
 	 */
 	size_t rrset_skip;
 
-	/** trust anchor name */
-	uint8_t* trust_anchor_name;
-	/** trust anchor labels */
-	int trust_anchor_labs;
-	/** trust anchor length */
-	size_t trust_anchor_len;
+	/** the trust anchor rrset */
+	struct trust_anchor* trust_anchor;
 
 	/** the DS rrset */
 	struct ub_packed_rrset_key* ds_rrset;

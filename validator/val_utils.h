@@ -51,7 +51,6 @@ struct key_entry_key;
 struct regional;
 struct val_anchors;
 struct rrset_cache;
-struct sock_list;
 
 /**
  * Response classifications for the validator. The different types of proofs.
@@ -133,21 +132,6 @@ enum sec_status val_verify_rrset(struct module_env* env, struct val_env* ve,
 enum sec_status val_verify_rrset_entry(struct module_env* env, 
 	struct val_env* ve, struct ub_packed_rrset_key* rrset, 
 	struct key_entry_key* kkey);
-
-/**
- * Verify DNSKEYs with DS rrset. Like val_verify_new_DNSKEYs but
- * returns a sec_status instead of a key_entry.
- * @param env: module environment (scratch buffer)
- * @param ve: validator environment (verification settings)
- * @param dnskey_rrset: DNSKEY rrset to verify
- * @param ds_rrset: DS rrset to verify with.
- * @return: sec_status_secure if a DS matches.
- *     sec_status_insecure if end of trust (i.e., unknown algorithms).
- *     sec_status_bogus if it fails.
- */
-enum sec_status val_verify_DNSKEY_with_DS(struct module_env* env, 
-	struct val_env* ve, struct ub_packed_rrset_key* dnskey_rrset, 
-	struct ub_packed_rrset_key* ds_rrset);
 
 /**
  * Verify new DNSKEYs with DS rrset. The DS contains hash values that should
@@ -287,18 +271,5 @@ void val_find_rrset_signer(struct ub_packed_rrset_key* rrset, uint8_t** sname,
  * @return static string to describe the classification.
  */
 const char* val_classification_to_string(enum val_classification subtype);
-
-/**
- * Add existing list to blacklist.
- * @param blacklist: the blacklist with result
- * @param region: the region where blacklist is allocated.
- *	Allocation failures are logged.
- * @param origin: origin list to add, if NULL, a cache-entry is added to
- *   the blacklist to stop cache from being used.
- * @param cross: if true this is a cross-qstate copy, and the 'origin'
- *   list is not allocated in the same region as the blacklist.
- */
-void val_blacklist(struct sock_list** blacklist, struct regional* region,
-	struct sock_list* origin, int cross);
 
 #endif /* VALIDATOR_VAL_UTILS_H */

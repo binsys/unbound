@@ -182,16 +182,7 @@ if test "$srcdir" != "."; then
 	CPPFLAGS="$CPPFLAGS -I$srcdir"
 fi
 
-AC_DEFUN([ACX_YYLEX_DESTROY], [
-	AC_MSG_CHECKING([for yylex_destroy])
-	if echo %% | $LEX -t 2>&1 | grep yylex_destroy >/dev/null 2>&1; then
-		AC_DEFINE(LEX_HAS_YYLEX_DESTROY, 1, [if lex has yylex_destroy])
-		AC_MSG_RESULT(yes)
-	else AC_MSG_RESULT(no); fi
-])
-
 AC_PROG_LEX
-ACX_YYLEX_DESTROY
 AC_PROG_YACC
 AC_CHECK_PROG(doxygen, doxygen, doxygen)
 AC_CHECK_TOOL(STRIP, strip)
@@ -360,44 +351,12 @@ fi
 # Checks for libraries.
 ACX_WITH_SSL
 ACX_LIB_SSL
-AC_CHECK_HEADERS([openssl/conf.h],,, [AC_INCLUDES_DEFAULT])
-AC_CHECK_HEADERS([openssl/engine.h],,, [AC_INCLUDES_DEFAULT])
-AC_CHECK_FUNCS([OPENSSL_config EVP_sha1 EVP_sha256 EVP_sha512])
-AC_CHECK_DECLS([SSL_COMP_get_compression_methods], [], [], [
-AC_INCLUDES_DEFAULT
-#ifdef HAVE_OPENSSL_ERR_H
-#include <openssl/err.h>
-#endif
+AC_CHECK_FUNCS([EVP_sha1 EVP_sha256 EVP_sha512 ENGINE_load_gost])
 
-#ifdef HAVE_OPENSSL_RAND_H
-#include <openssl/rand.h>
-#endif
-
-#ifdef HAVE_OPENSSL_CONF_H
-#include <openssl/conf.h>
-#endif
-
-#ifdef HAVE_OPENSSL_ENGINE_H
-#include <openssl/engine.h>
-#endif
-#include <openssl/ssl.h>
-#include <openssl/evp.h>
-])
-
-AC_ARG_ENABLE(sha2, AC_HELP_STRING([--enable-sha2], [Enable SHA256 and SHA512 RRSIG support, experimental]))
+AC_ARG_ENABLE(sha2, AC_HELP_STRING([--enable-sha2], [Enable SHA256 and SHA512 RRSIG support]))
 case "$enable_sha2" in
 	yes)
-	AC_DEFINE([USE_SHA2], [1], [Define this to enable SHA256 and SHA512 support.])
-	;;
-	no|*)
-	;;
-esac
-
-AC_ARG_ENABLE(gost, AC_HELP_STRING([--enable-gost], [Enable GOST support, experimental]))
-case "$enable_gost" in
-	yes)
-	AC_CHECK_LIB(crypto, EVP_PKEY_set_type_str, [:],[AC_MSG_ERROR([OpenSSL >= 1.0.0 is needed for GOST support])])
-	AC_DEFINE([USE_GOST], [1], [Define this to enable GOST support.])
+	AC_DEFINE_UNQUOTED([USE_SHA2], [], [Define this to enable SHA256 and SHA512 support.])
 	;;
 	no|*)
 	;;
@@ -440,9 +399,9 @@ if test x_$withval = x_yes -o x_$withval != x_no; then
 			mkdir build >/dev/null 2>&1
 			mkdir build/libevent >/dev/null 2>&1
 			mkdir build/libevent/.libs >/dev/null 2>&1
-			ev_files_o=`ls $thedir/*.o | grep -v evdns\.o | grep -v bufferevent_openssl\.o`
-			ev_files_lo=`ls $thedir/*.lo | grep -v evdns\.lo | grep -v bufferevent_openssl\.lo`
-			ev_files_libso=`ls $thedir/.libs/*.o | grep -v evdns\.o | grep -v bufferevent_openssl\.o`
+			ev_files_o=`ls $thedir/*.o | grep -v evdns\.o`
+			ev_files_lo=`ls $thedir/*.lo | grep -v evdns\.lo`
+			ev_files_libso=`ls $thedir/.libs/*.o | grep -v evdns\.o`
 			cp $ev_files_o build/libevent
 			cp $ev_files_lo build/libevent
 			cp $ev_files_libso build/libevent/.libs
@@ -527,11 +486,7 @@ if test "$USE_WINSOCK" = 1; then
 	AC_DEFINE(UB_ON_WINDOWS, 1, [Use win32 resources and API])
 	UB_ON_WINDOWS=yes
 	AC_SUBST(UB_ON_WINDOWS)
-	AC_CHECK_HEADERS([iphlpapi.h],,, [AC_INCLUDES_DEFAULT
-#include <windows.h>
-	])
 	AC_CHECK_TOOL(WINDRES, windres)
-	LIBS="$LIBS -liphlpapi"
 fi
 if test $ac_cv_func_getaddrinfo = no; then
 	AC_LIBOBJ([fake-rfc2553])
@@ -562,7 +517,6 @@ AC_REPLACE_FUNCS(snprintf)
 AC_REPLACE_FUNCS(strlcpy)
 AC_REPLACE_FUNCS(memmove)
 AC_REPLACE_FUNCS(gmtime_r)
-AC_REPLACE_FUNCS(ctime_r)
 
 # check this after all other compilation checks, since the linking of the lib
 # may break checks after this.
@@ -619,7 +573,7 @@ fi  dnl end of use_ldns_builtin == yes
 ACX_STRIP_EXT_FLAGS
 LDFLAGS="$LATE_LDFLAGS $LDFLAGS"
 
-AC_DEFINE_UNQUOTED([MAXSYSLOGMSGLEN], [10240], [Define to the maximum message length to pass to syslog.])
+AC_DEFINE_UNQUOTED([MAXSYSLOGMSGLEN], [5120], [Define to the maximum message length to pass to syslog.])
 
 AH_BOTTOM(
 dnl this must be first AH_CONFIG, to define the flags before any includes.
@@ -686,14 +640,6 @@ dnl includes
 #ifdef HAVE_OPENSSL_RAND_H
 #include <openssl/rand.h>
 #endif
-
-#ifdef HAVE_OPENSSL_CONF_H
-#include <openssl/conf.h>
-#endif
-
-#ifdef HAVE_OPENSSL_ENGINE_H
-#include <openssl/engine.h>
-#endif
 ]
 
 AHX_CONFIG_FORMAT_ATTRIBUTE
@@ -715,11 +661,6 @@ AHX_CONFIG_W32_FD_SET_T
 AHX_CONFIG_IPV6_MIN_MTU
 
 [
-#ifndef HAVE_CTIME_R
-#define ctime_r unbound_ctime_r
-char *ctime_r(const time_t *timep, char *buf);
-#endif
-
 #if defined(HAVE_EVENT_H) && !defined(HAVE_EVENT_BASE_ONCE) && (defined(HAVE_PTHREAD) || defined(HAVE_SOLARIS_THREADS))
    /* using version of libevent that is not threadsafe. */
 #  define LIBEVENT_SIGNAL_PROBLEM 1

@@ -51,13 +51,11 @@
 #include "util/data/msgparse.h"
 #include "util/data/msgreply.h"
 #include "util/data/msgencode.h"
-#include "util/config_file.h"
 #include "services/listen_dnsport.h"
 #include "services/outside_network.h"
 #include "testcode/replay.h"
 #include "testcode/ldns-testpkts.h"
 #include "util/log.h"
-#include "util/fptr_wlist.h"
 #include <signal.h>
 struct worker;
 
@@ -75,18 +73,6 @@ timeval_add(struct timeval* d, const struct timeval* add)
 		d->tv_usec -= 1000000;
 		d->tv_sec++;
 	}
-#endif
-}
-
-void 
-fake_temp_file(const char* adj, const char* id, char* buf, size_t len)
-{
-#ifdef USE_WINSOCK
-	snprintf(buf, len, "testbound_%u%s%s.tmp",
-		(unsigned)getpid(), adj, id);
-#else
-	snprintf(buf, len, "/tmp/testbound_%u%s%s.tmp",
-		(unsigned)getpid(), adj, id);
 #endif
 }
 
@@ -130,10 +116,7 @@ repevt_string(enum replay_event_type t)
 	case repevt_time_passes: return "TIME_PASSES";
 	case repevt_back_reply:  return "REPLY";
 	case repevt_back_query:  return "CHECK_OUT_QUERY";
-	case repevt_autotrust_check: return "CHECK_AUTOTRUST";
 	case repevt_error:	 return "ERROR";
-	case repevt_assign:	 return "ASSIGN";
-	case repevt_traffic:	 return "TRAFFIC";
 	default:		 return "UNKNOWN";
 	}
 }
@@ -443,102 +426,15 @@ fake_pending_callback(struct replay_runtime* runtime,
 
 /** pass time */
 static void
-moment_assign(struct replay_runtime* runtime, struct replay_moment* mom)
-{
-	char* value = macro_process(runtime->vars, runtime, mom->string);
-	if(!value)
-		fatal_exit("could not process macro step %d", mom->time_step);
-	log_info("assign %s = %s", mom->variable, value);
-	if(!macro_assign(runtime->vars, mom->variable, value))
-		fatal_exit("out of memory storing macro");
-	free(value);
-	if(verbosity >= VERB_ALGO)
-		macro_print_debug(runtime->vars);
-}
-
-/** pass time */
-static void
 time_passes(struct replay_runtime* runtime, struct replay_moment* mom)
 {
-	struct fake_timer *t;
-	struct timeval tv = mom->elapse;
-	if(mom->string) {
-		char* xp = macro_process(runtime->vars, runtime, mom->string);
-		double sec;
-		if(!xp) fatal_exit("could not macro expand %s", mom->string);
-		verbose(VERB_ALGO, "EVAL %s", mom->string);
-		sec = atof(xp);
-		free(xp);
-		tv.tv_sec = (int)sec;
-		tv.tv_usec = (int)((sec - (double)tv.tv_sec) *1000000. + 0.5);
-	}
-	timeval_add(&runtime->now_tv, &tv);
+	timeval_add(&runtime->now_tv, &mom->elapse);
 	runtime->now_secs = (uint32_t)runtime->now_tv.tv_sec;
 #ifndef S_SPLINT_S
 	log_info("elapsed %d.%6.6d  now %d.%6.6d", 
-		(int)tv.tv_sec, (int)tv.tv_usec,
+		(int)mom->elapse.tv_sec, (int)mom->elapse.tv_usec,
 		(int)runtime->now_tv.tv_sec, (int)runtime->now_tv.tv_usec);
 #endif
-	/* see if any timers have fired; and run them */
-	while( (t=replay_get_oldest_timer(runtime)) ) {
-		t->enabled = 0;
-		log_info("fake_timer callback");
-		fptr_ok(fptr_whitelist_comm_timer(t->cb));
-		(*t->cb)(t->cb_arg);
-	}
-}
-
-/** check autotrust file contents */
-static void
-autotrust_check(struct replay_runtime* runtime, struct replay_moment* mom)
-{
-	char name[1024], line[1024];
-	FILE *in;
-	int lineno = 0, oke=1;
-	char* expanded;
-	struct config_strlist* p;
-	line[sizeof(line)-1] = 0;
-	log_assert(mom->autotrust_id);
-	fake_temp_file("_auto_", mom->autotrust_id, name, sizeof(name));
-	in = fopen(name, "r");
-	if(!in) fatal_exit("could not open %s: %s", name, strerror(errno));
-	for(p=mom->file_content; p; p=p->next) {
-		lineno++;
-		if(!fgets(line, (int)sizeof(line)-1, in)) {
-			log_err("autotrust check failed, could not read line");
-			log_err("file %s, line %d", name, lineno);
-			log_err("should be: %s", p->str);
-			fatal_exit("autotrust_check failed");
-		}
-		if(line[0]) line[strlen(line)-1] = 0; /* remove newline */
-		expanded = macro_process(runtime->vars, runtime, p->str);
-		if(!expanded) 
-			fatal_exit("could not expand macro line %d", lineno);
-		if(verbosity >= 7 && strcmp(p->str, expanded) != 0)
-			log_info("expanded '%s' to '%s'", p->str, expanded);
-		if(strcmp(expanded, line) != 0) {
-			log_err("mismatch in file %s, line %d", name, lineno);
-			log_err("file has : %s", line);
-			log_err("should be: %s", expanded);
-			free(expanded);
-			oke = 0;
-			continue;
-		}
-		free(expanded);
-		fprintf(stderr, "%s:%2d ok : %s\n", name, lineno, line);
-	}
-	if(fgets(line, (int)sizeof(line)-1, in)) {
-		log_err("autotrust check failed, extra lines in %s after %d",
-			name, lineno);
-		do {
-			fprintf(stderr, "file has: %s", line);
-		} while(fgets(line, (int)sizeof(line)-1, in));
-		oke = 0;
-	}
-	fclose(in);
-	if(!oke)
-		fatal_exit("autotrust_check STEP %d failed", mom->time_step);
-	log_info("autotrust %s is OK", mom->autotrust_id);
 }
 
 /**
@@ -608,17 +504,6 @@ do_moment_and_advance(struct replay_runtime* runtime)
 		time_passes(runtime, runtime->now);
 		advance_moment(runtime);
 		break;
-	case repevt_autotrust_check:
-		autotrust_check(runtime, runtime->now);
-		advance_moment(runtime);
-		break;
-	case repevt_assign:
-		moment_assign(runtime, runtime->now);
-		advance_moment(runtime);
-		break;
-	case repevt_traffic:
-		advance_moment(runtime);
-		break;
 	default:
 		fatal_exit("testbound: unknown event type %d", 
 			runtime->now->evt_type);
@@ -631,7 +516,7 @@ run_scenario(struct replay_runtime* runtime)
 {
 	struct entry* entry = NULL;
 	struct fake_pending* pending = NULL;
-	int max_rounds = 5000;
+	int max_rounds = 50;
 	int rounds = 0;
 	runtime->now = runtime->scenario->mom_first;
 	log_info("testbound: entering fake runloop");
@@ -717,8 +602,6 @@ comm_base_create(int ATTR_UNUSED(sigs))
 	struct replay_runtime* runtime = (struct replay_runtime*)
 		calloc(1, sizeof(struct replay_runtime));
 	runtime->scenario = saved_scenario;
-	runtime->vars = macro_store_create();
-	if(!runtime->vars) fatal_exit("out of memory");
 	return (struct comm_base*)runtime;
 }
 
@@ -728,7 +611,6 @@ comm_base_delete(struct comm_base* b)
 	struct replay_runtime* runtime = (struct replay_runtime*)b;
 	struct fake_pending* p, *np;
 	struct replay_answer* a, *na;
-	struct fake_timer* t, *nt;
 	if(!runtime)
 		return;
 	runtime->scenario= NULL;
@@ -744,13 +626,6 @@ comm_base_delete(struct comm_base* b)
 		delete_replay_answer(a);
 		a = na;
 	}
-	t = runtime->timer_list;
-	while(t) {
-		nt = t->next;
-		free(t);
-		t = nt;
-	}
-	macro_store_delete(runtime->vars);
 	free(runtime);
 }
 
@@ -1263,57 +1138,25 @@ int serviced_cmp(const void* ATTR_UNUSED(a), const void* ATTR_UNUSED(b))
 	return 0;
 }
 
-/* timers in testbound for autotrust. statistics tested in tpkg. */
-struct comm_timer* comm_timer_create(struct comm_base* base, 
-	void (*cb)(void*), void* cb_arg)
+/* no statistics timers in testbound */
+struct comm_timer* comm_timer_create(struct comm_base* ATTR_UNUSED(base), 
+	void (*cb)(void*), void* ATTR_UNUSED(cb_arg))
 {
-	struct replay_runtime* runtime = (struct replay_runtime*)base;
-	struct fake_timer* t = (struct fake_timer*)calloc(1, sizeof(*t));
-	t->cb = cb;
-	t->cb_arg = cb_arg;
-	fptr_ok(fptr_whitelist_comm_timer(t->cb)); /* check in advance */
-	t->runtime = runtime;
-	t->next = runtime->timer_list;
-	runtime->timer_list = t;
-	return (struct comm_timer*)t;
+	(void)cb;
+	return malloc(1);
 }
 
-void comm_timer_disable(struct comm_timer* timer)
+void comm_timer_disable(struct comm_timer* ATTR_UNUSED(timer))
 {
-	struct fake_timer* t = (struct fake_timer*)timer;
-	log_info("fake timer disabled");
-	t->enabled = 0;
 }
 
-void comm_timer_set(struct comm_timer* timer, struct timeval* tv)
+void comm_timer_set(struct comm_timer* ATTR_UNUSED(timer), 
+	struct timeval* ATTR_UNUSED(tv))
 {
-	struct fake_timer* t = (struct fake_timer*)timer;
-	t->enabled = 1;
-	t->tv = *tv;
-	log_info("fake timer set %d.%6.6d", 
-		(int)t->tv.tv_sec, (int)t->tv.tv_usec);
-	timeval_add(&t->tv, &t->runtime->now_tv);
 }
 
 void comm_timer_delete(struct comm_timer* timer)
 {
-	struct fake_timer* t = (struct fake_timer*)timer;
-	struct fake_timer** pp, *p;
-	if(!t) return;
-
-	/* remove from linked list */
-	pp = &t->runtime->timer_list;
-	p = t->runtime->timer_list;
-	while(p) {
-		if(p == t) {
-			/* snip from list */
-			*pp = p->next;
-			break;
-		}
-		pp = &p->next;
-		p = p->next;
-	}
-
 	free(timer);
 }
 

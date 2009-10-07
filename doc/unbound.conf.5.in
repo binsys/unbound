@@ -197,17 +197,6 @@ the other 50% are replaced with the new incoming query if they have already
 spent more than their allowed time.  This protects against denial of 
 service by slow queries or high query rates.  Default 200 milliseconds.
 .TP
-.B so\-rcvbuf: \fI<number>
-If not 0, then set the SO_RCVBUF socket option to get more buffer
-space on UDP port 53 incoming queries.  So that short spikes on busy
-servers do not drop packets (see counter in netstat \-su).  Default is
-0 (use system value).  Otherwise, the number of bytes to ask for, try
-"4m" on a busy server.  The OS caps it at a maximum, on linux unbound
-needs root permission to bypass the limit, or the admin can use sysctl
-net.core.rmem_max.  On BSD change kern.ipc.maxsockbuf in /etc/sysctl.conf.
-On OpenBSD change header and recompile kernel. On Solaris ndd \-set
-/dev/udp udp_max_buf 8388608.
-.TP
 .B rrset\-cache\-size: \fI<number>
 Number of bytes size of the RRset cache. Default is 4 megabytes.
 A plain number is in bytes, append 'k', 'm' or 'g' for kilobytes, megabytes
@@ -502,13 +491,6 @@ File with trusted keys for validation. Both DS and DNSKEY entries can appear
 in the file. The format of the file is the standard DNS Zone file format.
 Default is "", or no trust anchor file.
 .TP
-.B auto\-trust\-anchor\-file: \fI<filename>
-File with trust anchor for one zone, which is tracked with RFC5011 probes.
-The probes are several times per month, thus the machine must be online
-frequently.  The initial file can be one with contents as described in
-\fBtrust\-anchor\-file\fR.  The file is written to when the anchor is updated,
-so the unbound user must have write permission.
-.TP
 .B trust\-anchor: \fI<"Resource Record">
 A DS or DNSKEY RR for a key to use for validation. Multiple entries can be
 given to specify multiple trusted keys, in addition to the trust\-anchor\-files.
@@ -605,26 +587,6 @@ be in ascending order and have at least one entry. If you set it to
 "1024 65535" there is no restriction to NSEC3 iteration values.
 This table must be kept short; a very long list could cause slower operation.
 .TP
-.B add\-holddown: \fI<seconds>
-Instruct the \fBauto\-trust\-anchor\-file\fR probe mechanism for RFC5011
-autotrust updates to add new trust anchors only after they have been
-visible for this time.  Default is 30 days as per the RFC.
-.TP
-.B del\-holddown: \fI<seconds>
-Instruct the \fBauto\-trust\-anchor\-file\fR probe mechanism for RFC5011
-autotrust updates to remove revoked trust anchors after they have been
-kept in the revoked list for this long.  Default is 30 days as per
-the RFC.
-.TP
-.B keep\-missing: \fI<seconds>
-Instruct the \fBauto\-trust\-anchor\-file\fR probe mechanism for RFC5011
-autotrust updates to remove missing trust anchors after they have been
-unseen for this long.  This cleans up the state file if the target zone
-does not perform trust anchor revocation, so this makes the auto probe
-mechanism work with zones that perform regular (non\-5011) rollovers.
-The default is 366 days.  The value 0 does not remove missing anchors,
-as per the RFC.
-.TP
 .B key\-cache\-size: \fI<number>
 Number of bytes size of the key cache. Default is 4 megabytes.
 A plain number is in bytes, append 'k', 'm' or 'g' for kilobytes, megabytes
@@ -674,16 +636,14 @@ If no local\-zone is given local\-data causes a transparent zone
 to be created by default.
 .TP 10
 \h'5'\fIredirect\fR 
-The query is answered from the local data for the zone name.
+The query is answered from the local data for the zone name. 
 There may be no local data beneath the zone name.
 This answers queries for the zone, and all subdomains of the zone
 with the local data for the zone.
-It can be used to redirect a domain to return a different address record
-to the end user, with 
+It can be used to redirect a domain to a different address, with 
 local\-zone: "example.com." redirect and 
 local\-data: "example.com. A 127.0.0.1"
-queries for www.example.com and www.foo.example.com are redirected, so
-that users with web browsers cannot access sites with suffix example.com.
+queries for www.example.com and www.foo.example.com are redirected.
 .TP 10
 \h'5'\fInodefault\fR 
 Used to turn off default contents for AS112 zones. The other types
@@ -839,8 +799,6 @@ There may be multiple
 .B stub\-zone:
 clauses. Each with a name: and zero or more hostnames or IP addresses.
 For the stub zone this list of nameservers is used. Class IN is assumed.
-The servers should be authority servers, not recursors; unbound performs
-the recursive processing itself for stub zones.
 .P
 The stub zone can be used to configure authoritative data to be used
 by the resolver that cannot be accessed using the public internet servers.
@@ -879,16 +837,11 @@ the resolver picks up a correct list online.
 .LP
 There may be multiple
 .B forward\-zone:
-clauses. Each with a \fBname:\fR and zero or more hostnames or IP
-addresses.  For the forward zone this list of nameservers is used to
-forward the queries to. The servers listed as \fBforward\-host:\fR and
-\fBforward-addr:\fR have to handle further recursion for the query.  Thus,
-those servers are not authority servers, but are (just like unbound is)
-recursive servers too; unbound does not perform recursion itself for the
-forward zone, it lets the remote server do it.  Class IN is assumed.
-A forward\-zone entry with name "." and a forward\-addr target will
-forward all queries to that other server (unless it can answer from
-the cache).
+clauses. Each with a name: and zero or more hostnames or IP addresses.
+For the forward zone this list of nameservers is used to forward the queries
+to. The servers have to handle further recursion for the query. Class IN is 
+assumed. A forward\-zone entry with name "." and a forward\-addr target will 
+forward all queries to that other server (unless it can answer from the cache).
 .TP
 .B name: \fI<domain name>
 Name of the forward zone.

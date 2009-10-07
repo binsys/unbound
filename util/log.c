@@ -129,10 +129,6 @@ log_init(const char* filename, int use_syslog, const char* chrootdir)
 			strerror(errno));
 		return;
 	}
-#ifndef UB_ON_WINDOWS
-	/* line buffering does not work on windows */
-	setvbuf(f, NULL, (int)_IOLBF, 0);
-#endif
 	logfile = f;
 }
 
@@ -221,10 +217,7 @@ log_vmsg(int pri, const char* type,
 #endif
 	fprintf(logfile, "[%u] %s[%d:%x] %s: %s\n", (unsigned)now, 
 		ident, (int)getpid(), tid?*tid:0, type, message);
-#ifdef UB_ON_WINDOWS
-	/* line buffering does not work on windows */
 	fflush(logfile);
-#endif
 }
 
 /**

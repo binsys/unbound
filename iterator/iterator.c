@@ -858,22 +858,15 @@ processInitRequest(struct module_qstate* qstate, struct iter_qstate* iq,
 	/* This either results in a query restart (CNAME cache response), a
 	 * terminating response (ANSWER), or a cache miss (null). */
 	
-	if(qstate->blacklist) {
-		/* if cache, or anything else, was blacklisted then
-		 * getting older results from cache is a bad idea, no cache */
-		verbose(VERB_ALGO, "cache blacklisted, going to the network");
-		msg = NULL;
-	} else {
-		msg = dns_cache_lookup(qstate->env, iq->qchase.qname, 
-			iq->qchase.qname_len, iq->qchase.qtype, 
-			iq->qchase.qclass, qstate->region, qstate->env->scratch);
-		if(!msg && qstate->env->neg_cache) {
-			/* lookup in negative cache; may result in 
-			 * NOERROR/NODATA or NXDOMAIN answers that need validation */
-			msg = val_neg_getmsg(qstate->env->neg_cache, &iq->qchase,
-				qstate->region, qstate->env->rrset_cache,
-				qstate->env->scratch_buffer, *qstate->env->now);
-		}
+	msg = dns_cache_lookup(qstate->env, iq->qchase.qname, 
+		iq->qchase.qname_len, iq->qchase.qtype, 
+		iq->qchase.qclass, qstate->region, qstate->env->scratch);
+	if(!msg && qstate->env->neg_cache) {
+		/* lookup in negative cache; may result in 
+		 * NOERROR/NODATA or NXDOMAIN answers that need validation */
+		msg = val_neg_getmsg(qstate->env->neg_cache, &iq->qchase,
+			qstate->region, qstate->env->rrset_cache,
+			qstate->env->scratch_buffer, *qstate->env->now);
 	}
 	if(msg) {
 		/* handle positive cache response */
@@ -901,13 +894,9 @@ processInitRequest(struct module_qstate* qstate, struct iter_qstate* iq,
 			iq->dp = NULL;
 			iq->refetch_glue = 0;
 			iq->query_restart_count++;
-			sock_list_insert(&qstate->reply_origin, NULL, 0, qstate->region);
 			return next_state(iq, INIT_REQUEST_STATE);
 		}
 
-		/* if from cache, NULL, else insert 'cache IP' len=0 */
-		if(qstate->reply_origin)
-			sock_list_insert(&qstate->reply_origin, NULL, 0, qstate->region);
 		/* it is an answer, response, to final state */
 		verbose(VERB_ALGO, "returning answer from cache.");
 		iq->response = msg;
@@ -945,23 +934,19 @@ processInitRequest(struct module_qstate* qstate, struct iter_qstate* iq,
 		delname = iq->qchase.qname;
 		delnamelen = iq->qchase.qname_len;
 	}
-	if(iq->qchase.qtype == LDNS_RR_TYPE_DS || iq->refetch_glue) {
-		/* remove first label from delname, root goes to hints */
-		if(dname_is_root(delname))
-			delname = NULL; /* go to root priming */
-		else 	dname_remove_label(&delname, &delnamelen);
+	if((iq->qchase.qtype == LDNS_RR_TYPE_DS || iq->refetch_glue)
+		&& !dname_is_root(delname)) {
+		/* do not adjust root label, remove first label from delname */
+		dname_remove_label(&delname, &delnamelen);
 		iq->refetch_glue = 0; /* if CNAME causes restart, no refetch */
 	}
-	/* delname is the name to lookup a delegation for. If NULL rootprime */
 	while(1) {
 		
 		/* Lookup the delegation in the cache. If null, then the 
 		 * cache needs to be primed for the qclass. */
-		if(delname)
-		     iq->dp = dns_cache_find_delegation(qstate->env, delname, 
+		iq->dp = dns_cache_find_delegation(qstate->env, delname, 
 			delnamelen, iq->qchase.qtype, iq->qchase.qclass, 
 			qstate->region, &iq->deleg_msg, *qstate->env->now);
-		else iq->dp = NULL;
 
 		/* If the cache has returned nothing, then we have a 
 		 * root priming situation. */
@@ -1112,8 +1097,6 @@ processInitRequest3(struct module_qstate* qstate, struct iter_qstate* iq)
 		if(verbosity >= VERB_ALGO)
 			log_dns_msg("no RD requested, using delegation msg", 
 				&iq->response->qinfo, iq->response->rep);
-		if(qstate->reply_origin)
-			sock_list_insert(&qstate->reply_origin, NULL, 0, qstate->region);
 		return final_state(iq);
 	}
 
@@ -1362,8 +1345,7 @@ processQueryTargets(struct module_qstate* qstate, struct iter_qstate* iq,
 	/* Select the next usable target, filtering out unsuitable targets. */
 	target = iter_server_selection(ie, qstate->env, iq->dp, 
 		iq->dp->name, iq->dp->namelen, iq->qchase.qtype,
-		&iq->dnssec_expected, &iq->chase_to_rd, iq->num_target_queries,
-		qstate->blacklist);
+		&iq->dnssec_expected, &iq->chase_to_rd, iq->num_target_queries);
 
 	/* If no usable target was selected... */
 	if(!target) {
@@ -1394,17 +1376,6 @@ processQueryTargets(struct module_qstate* qstate, struct iter_qstate* iq,
 			/* Since a target query might have been made, we 
 			 * need to check again. */
 			if(iq->num_target_queries == 0) {
-				/* is it glue and we suspect that it exists?*/
-				if(iter_suspect_exists(&iq->qchase, iq->dp, 
-					qstate->env)) {
-					/* try at parent */
-					iq->deleg_msg = NULL;
-					iq->refetch_glue = 1;
-					iq->query_restart_count++;
-					return next_state(iq, 
-						INIT_REQUEST_STATE);
-				}
-
 				verbose(VERB_QUERY, "out of query targets -- "
 					"returning SERVFAIL");
 				/* fail -- no more targets, no more hope 
@@ -1432,7 +1403,6 @@ processQueryTargets(struct module_qstate* qstate, struct iter_qstate* iq,
 	}
 
 	/* We have a valid target. */
-	if(iq->dnssec_expected) verbose(VERB_ALGO, "dnssec is expected");
 	log_query_info(VERB_QUERY, "sending query:", &iq->qchase);
 	log_name_addr(VERB_QUERY, "sending to target:", iq->dp->name, 
 		&target->addr, target->addrlen);
@@ -1548,10 +1518,6 @@ processQueryResponse(struct module_qstate* qstate, struct iter_qstate* iq,
 			qstate->env->detach_subs));
 		(*qstate->env->detach_subs)(qstate);
 		iq->num_target_queries = 0;
-		if(qstate->reply)
-			sock_list_insert(&qstate->reply_origin, 
-				&qstate->reply->addr, qstate->reply->addrlen, 
-				qstate->region);
 		return final_state(iq);
 	} else if(type == RESPONSE_TYPE_REFERRAL) {
 		/* REFERRAL type responses get a reset of the 
@@ -1661,10 +1627,6 @@ processQueryResponse(struct module_qstate* qstate, struct iter_qstate* iq,
 			qstate->env->detach_subs));
 		(*qstate->env->detach_subs)(qstate);
 		iq->num_target_queries = 0;
-		if(qstate->reply)
-			sock_list_insert(&qstate->reply_origin, 
-				&qstate->reply->addr, qstate->reply->addrlen, 
-				qstate->region);
 		verbose(VERB_ALGO, "cleared outbound list for query restart");
 		/* go to INIT_REQUEST_STATE for new qname. */
 		return next_state(iq, INIT_REQUEST_STATE);

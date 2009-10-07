@@ -17,7 +17,6 @@
    #include "config.h"
    #include "util/log.h"
    #include "util/module.h"
-   #include "util/netevent.h"
    #include "util/regional.h"
    #include "util/config_file.h"
    #include "util/data/msgreply.h"
@@ -25,7 +24,6 @@
    #include "util/data/dname.h"
    #include "util/storage/lruhash.h"
    #include "services/cache/dns.h"
-   #include "services/mesh.h"
 %}
 
 %include "stdint.i" // uint_16_t can be known type now
@@ -411,68 +409,6 @@ struct dns_msg {
 }
 
 /* ************************************************************************************ * 
-   Structure mesh_state
- * ************************************************************************************ */
-struct mesh_state {
-   struct mesh_reply* reply_list;
-};
-
-struct mesh_reply {
-   struct mesh_reply* next;
-   struct comm_reply query_reply;
-};
-
-struct comm_reply {
-   
-};
-
-%inline %{
-
-  PyObject* _comm_reply_addr_get(struct comm_reply* reply) {
-     char dest[64];
-     reply_addr2str(reply, dest, 64);
-     if (dest[0] == 0)
-        return Py_None;
-     return PyString_FromString(dest);
-  }
-
-  PyObject* _comm_reply_family_get(struct comm_reply* reply) {
-
-        int af = (int)((struct sockaddr_in*) &(reply->addr))->sin_family;
-
-        switch(af) {
-           case AF_INET: return PyString_FromString("ip4");
-           case AF_INET6: return PyString_FromString("ip6"); 
-           case AF_UNIX: return PyString_FromString("unix");
-        }
-
-        return Py_None;
-  }
-
-  PyObject* _comm_reply_port_get(struct comm_reply* reply) {
-     uint16_t port;
-     port = ntohs(((struct sockaddr_in*)&(reply->addr))->sin_port);
-     return PyInt_FromLong(port);
-  }
-
-%}
-
-%extend comm_reply {
-   %pythoncode %{
-        def _addr_get(self): return _comm_reply_addr_get(self)
-        __swig_getmethods__["addr"] = _addr_get
-        if _newclass:addr = _swig_property(_addr_get)
-
-        def _port_get(self): return _comm_reply_port_get(self)
-        __swig_getmethods__["port"] = _port_get
-        if _newclass:port = _swig_property(_port_get)
-
-        def _family_get(self): return _comm_reply_family_get(self)
-        __swig_getmethods__["family"] = _family_get
-        if _newclass:family = _swig_property(_family_get)
-   %}
-}
-/* ************************************************************************************ * 
    Structure module_qstate
  * ************************************************************************************ */
 %ignore module_qstate::ext_state;
@@ -779,7 +715,7 @@ int set_return_msg(struct module_qstate* qstate,
 {
      ldns_pkt* pkt = 0;
      ldns_status status;
-     ldns_rr_list* rr_list = 0;
+     ldns_rr_list* rr_list1 = 0,*rr_list2 = 0,*rr_list3 = 0,*rr_list4 = 0;
      ldns_buffer *qb = 0;
      int res = 1;
      
@@ -790,18 +726,14 @@ int set_return_msg(struct module_qstate* qstate,
      if ((status != LDNS_STATUS_OK) || (pkt == 0))
         return 0;
 
-     rr_list = createRRList(question, default_ttl);
-     if ((rr_list) && (res)) res = ldns_pkt_push_rr_list(pkt, LDNS_SECTION_QUESTION, rr_list);
-     ldns_rr_list_free(rr_list);
-     rr_list = createRRList(answer, default_ttl);
-     if ((rr_list) && (res)) res = ldns_pkt_push_rr_list(pkt, LDNS_SECTION_ANSWER, rr_list);
-     ldns_rr_list_free(rr_list);
-     rr_list = createRRList(authority, default_ttl);
-     if ((rr_list) && (res)) res = ldns_pkt_push_rr_list(pkt, LDNS_SECTION_AUTHORITY, rr_list);
-     ldns_rr_list_free(rr_list);
-     rr_list = createRRList(additional, default_ttl);
-     if ((rr_list) && (res)) res = ldns_pkt_push_rr_list(pkt, LDNS_SECTION_ADDITIONAL, rr_list);
-     ldns_rr_list_free(rr_list);
+     rr_list1 = createRRList(question, default_ttl);
+     if ((rr_list1) && (res)) res = ldns_pkt_push_rr_list(pkt, LDNS_SECTION_QUESTION, rr_list1);
+     rr_list2 = createRRList(answer, default_ttl);
+     if ((rr_list2) && (res)) res = ldns_pkt_push_rr_list(pkt, LDNS_SECTION_ANSWER, rr_list2);
+     rr_list3 = createRRList(authority, default_ttl);
+     if ((rr_list3) && (res)) res = ldns_pkt_push_rr_list(pkt, LDNS_SECTION_AUTHORITY, rr_list3);
+     rr_list4 = createRRList(additional, default_ttl);
+     if ((rr_list4) && (res)) res = ldns_pkt_push_rr_list(pkt, LDNS_SECTION_ADDITIONAL, rr_list4);
 
      if ((res) && ((qb = ldns_buffer_new(LDNS_MIN_BUFLEN)) == 0)) res = 0;
      if ((res) && (ldns_pkt2buffer_wire(qb, pkt) != LDNS_STATUS_OK)) res = 0;
@@ -810,7 +742,7 @@ int set_return_msg(struct module_qstate* qstate,
 
      if (qb) ldns_buffer_free(qb);
 
-     ldns_pkt_free(pkt); //this function dealocates pkt as well as rrs
+     ldns_pkt_free(pkt); //this function dealocates pkt as well as rr_lists
      return res;
 }
 %}

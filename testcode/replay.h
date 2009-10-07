@@ -41,15 +41,6 @@
  * <pre>
  * File format for replay files.
  *
- * ; unbound.conf options.
- * ; ...
- * ; additional commandline options to pass to unbound
- * COMMANDLINE cmdline_option
- * ; autotrust key file contents, also adds auto-trust-anchor-file: "x" to cfg
- * AUTOTRUST_FILE id
- * ; contents of that file
- * AUTOTRUST_END
- * CONFIG_END
  * ; comment line.
  * SCENARIO_BEGIN name_of_scenario
  * RANGE_BEGIN start_time end_time
@@ -69,33 +60,11 @@
  *      o TIMEOUT
  *      o TIME_PASSES ELAPSE [seconds] - increase 'now' time counter, can be 
  *      			a floating point number.
- *        TIME_PASSES EVAL [macro] - expanded for seconds to move time.
- *      o TRAFFIC - like CHECK_ANSWER, causes traffic to flow.
- *		actually the traffic flows before this step is taken.
- *		the step waits for traffic to stop.
- *      o CHECK_AUTOTRUST [id] - followed by FILE_BEGIN [to match] FILE_END.
- *      	The file contents is macro expanded before match.
  *      o ERROR
  * ; following entry starts on the next line, ENTRY_BEGIN.
  * ; more STEP items
  * SCENARIO_END
  *
- * Calculations, a macro-like system: ${$myvar + 3600}
- * STEP 10 ASSIGN myvar = 3600
- * 	; ASSIGN event. '=' is syntactic sugar here. 3600 is some expression.
- * ${..} is macro expanded from its expression.  Text substitution.
- * 	o $var replaced with its value.  var is identifier [azAZ09_]*
- * 	o number is that number.
- * 	o ${variables and arithmetic }
- * 	o +, -, / and *.  Note, evaluated left-to-right. Use ${} for brackets.
- * 	  So again, no precedence rules, so 2+3*4 === ${2+3}*4 === 20.
- * 	  Do 2+${3*4} to get 24.
- * 	o ${function params}
- *		o ${time} is the current time for the simulated unbound.
- *		o ${ctime value} is the text ctime(value), Fri 3 Aug 2009, ...
- *		o ${timeout} is the time until next timeout in comm_timer list.
- *		o ${range lower value upper} checks if lower<=value<=upper
- *			returns value if check succeeds.
  *
  * ; Example file
  * SCENARIO_BEGIN Example scenario
@@ -129,13 +98,10 @@
 #define TESTCODE_REPLAY_H
 #include "util/netevent.h"
 #include "testcode/ldns-testpkts.h"
-#include "util/rbtree.h"
 struct replay_answer;
 struct replay_moment;
 struct replay_range;
 struct fake_pending;
-struct fake_timer;
-struct replay_var;
 
 /**
  * A replay scenario.
@@ -190,14 +156,8 @@ struct replay_moment {
 		repevt_back_reply,
 		/** test fails if query to the network does not match */
 		repevt_back_query,
-		/** check autotrust key file */
-		repevt_autotrust_check,
 		/** an error happens to outbound query */
-		repevt_error,
-		/** assignment to a variable */
-		repevt_assign,
-		/** cause traffic to flow */
-		repevt_traffic
+		repevt_error
 	} 
 		/** variable with what is to happen this moment */
 		evt_type;
@@ -218,16 +178,6 @@ struct replay_moment {
 	 * Unused at this time.
 	 */
 	ldns_rr* qname;
-
-	/** macro name, for assign. */
-	char* variable;
-	/** string argument, for assign. */
-	char* string;
-
-	/** the autotrust file id to check */
-	char* autotrust_id;
-	/** file contents to match, one string per line */
-	struct config_strlist* file_content;
 };
 
 /**
@@ -277,9 +227,6 @@ struct replay_runtime {
 	/** last element in answer list. */
 	struct replay_answer* answer_last;
 
-	/** list of fake timer callbacks that are pending */
-	struct fake_timer* timer_list;
-
 	/** callback to call for incoming queries */
 	comm_point_callback_t* callback_query;
 	/** user argument for incoming query callback */
@@ -299,11 +246,6 @@ struct replay_runtime {
 
 	/** size of buffers */
 	size_t bufsize;
-
-	/**
-	 * Tree of macro values. Of type replay_var
-	 */
-	rbtree_t* vars;
 };
 
 /**
@@ -348,36 +290,6 @@ struct replay_answer {
 };
 
 /**
- * Timers with callbacks, fake replay version.
- */
-struct fake_timer {
-	/** next in list */
-	struct fake_timer* next;
-	/** the runtime structure this is part of */
-	struct replay_runtime* runtime;
-	/** the callback to call */
-	void (*cb)(void*);
-	/** the callback user argument */
-	void* cb_arg;
-	/** if timer is enabled */
-	int enabled;
-	/** when the timer expires */
-	struct timeval tv;
-};
-
-/**
- * Replay macro variable.  And its value.
- */
-struct replay_var {
-	/** rbtree node. Key is this structure. Sorted by name. */
-	rbnode_t node;
-	/** the variable name */
-	char* name;
-	/** the variable value */
-	char* value;
-};
-
-/**
  * Read a replay scenario from the file.
  * @param in: file to read from.
  * @param name: name to print in errors.
@@ -392,57 +304,5 @@ struct replay_scenario* replay_scenario_read(FILE* in, const char* name,
  * @param scen: to delete.
  */
 void replay_scenario_delete(struct replay_scenario* scen);
-
-/** compare two replay_vars */
-int replay_var_compare(const void* a, const void* b);
-
-/** get oldest enabled fake timer */
-struct fake_timer* replay_get_oldest_timer(struct replay_runtime* runtime);
-
-/**
- * Create variable storage
- * @return new or NULL on failure.
- */
-rbtree_t* macro_store_create(void);
-
-/**
- * Delete variable storage
- * @param store: the macro storage to free up.
- */
-void macro_store_delete(rbtree_t* store);
-
-/**
- * Apply macro substitution to string.
- * @param store: variable store.
- * @param runtime: the runtime to look up values as needed.
- * @param text: string to work on.
- * @return newly malloced string with result.
- */
-char* macro_process(rbtree_t* store, struct replay_runtime* runtime, 
-	char* text);
-
-/**
- * Look up a macro value. Like calling ${$name}.
- * @param store: variable store
- * @param name: macro name
- * @return newly malloced string with result or strdup("") if not found.
- * 	or NULL on malloc failure.
- */
-char* macro_lookup(rbtree_t* store, char* name);
-
-/**
- * Set macro value.
- * @param store: variable store
- * @param name: macro name
- * @param value: text to set it to.  Not expanded.
- * @return false on failure.
- */
-int macro_assign(rbtree_t* store, char* name, char* value);
-
-/** Print macro variables stored as debug info */
-void macro_print_debug(rbtree_t* store);
-
-/** testbounds self test */
-void testbound_selftest(void);
 
 #endif /* TESTCODE_REPLAY_H */

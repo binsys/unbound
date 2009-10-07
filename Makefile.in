@@ -5,10 +5,8 @@ debug_enabled=@debug_enabled@
 ifeq "$(QUIET)" ""
 ifeq ($(debug_enabled),yes)
   QUIET=yes
-  LIBTOOLQUIET=yes
 else
   QUIET=no
-  LIBTOOLQUIET=yes
 endif
 endif
 
@@ -64,7 +62,7 @@ RUNTIME_PATH=@RUNTIME_PATH@
 DEPFLAG=@DEPFLAG@
 DATE=$(shell date +%Y%m%d)
 LIBTOOL=$(libtool)
-ifeq "$(LIBTOOLQUIET)" "yes"
+ifeq "$(QUIET)" "yes"
   LIBTOOL+=--quiet
 endif
 BUILD=build/
@@ -146,15 +144,14 @@ ifeq "$(UB_ON_WINDOWS)" "yes"
 
   WINAPPS=$(addsuffix $(EXEEXT), unbound-service-install \
   	unbound-service-remove anchor-update)
-  COMPAT_WINAPP=$(filter-out $(BUILD)compat/ctime_r.lo, $(COMPAT_OBJ))
   SVCINST_SRC=winrc/unbound-service-install.c winrc/w_inst.c
-  SVCINST_OBJ=$(addprefix $(BUILD),$(SVCINST_SRC:.c=.lo)) $(COMPAT_WINAPP) \
+  SVCINST_OBJ=$(addprefix $(BUILD),$(SVCINST_SRC:.c=.lo)) $(COMPAT_OBJ) \
 	$(BUILD)winrc/rsrc_svcinst.o
   SVCUNINST_SRC=winrc/unbound-service-remove.c winrc/w_inst.c
-  SVCUNINST_OBJ=$(addprefix $(BUILD),$(SVCUNINST_SRC:.c=.lo)) $(COMPAT_WINAPP) \
+  SVCUNINST_OBJ=$(addprefix $(BUILD),$(SVCUNINST_SRC:.c=.lo)) $(COMPAT_OBJ) \
 	$(BUILD)winrc/rsrc_svcuninst.o
   ANCHORUPD_SRC=winrc/anchor-update.c
-  ANCHORUPD_OBJ=$(addprefix $(BUILD),$(ANCHORUPD_SRC:.c=.lo)) $(COMPAT_WINAPP) \
+  ANCHORUPD_OBJ=$(addprefix $(BUILD),$(ANCHORUPD_SRC:.c=.lo)) $(COMPAT_OBJ) \
         $(BUILD)winrc/rsrc_anchorupd.o
   ALL_SRC:=$(sort $(ALL_SRC) $(SVCINST_SRC) $(SVCUNINST_SRC) $(ANCHORUPD_SRC))
   ALL_OBJ:=$(sort $(ALL_OBJ) $(SVCINST_OBJ) $(SVCUNINST_OBJ) $(ANCHORUPD_OBJ))
@@ -178,7 +175,7 @@ $(BUILD)%.lo:    $(srcdir)/%.c
 	@if test ! -z "$(ldnsdir)" -a ! -e $(ldnsdir)/include/ldns/ldns.h; \
 		then (cd $(ldnsdir); $(MAKE) copy-headers); fi
 	@-if test ! -d $(dir $@); then $(INSTALL) -d $(patsubst %/,%,$(dir $@)); fi
-	$Q$(COMPILE) -o $@ -c $<
+	$Q$(COMPILE) -c $< -o $@
 
 all:	$(COMMON_OBJ) unbound$(EXEEXT) unbound-checkconf$(EXEEXT) lib unbound-host$(EXEEXT) unbound-control$(EXEEXT) unbound-control-setup $(WINAPPS)
 
@@ -191,6 +188,10 @@ test:	tests
 
 lib:	libunbound.la
 
+libunbound.la:	$(LIBUNBOUND_OBJ)
+	$(INFO) Link $@
+	$Q$(LINK_LIB) -export-symbols $(srcdir)/libunbound/ubsyms.def -o $@ $(sort $(LIBUNBOUND_OBJ)) -rpath $(libdir) $(LIBS)
+
 ifeq ($(patsubst ldns-src%,ldns-src,$(ldnsdir)),ldns-src)
 ldnslib=$(ldnsdir)/lib/libldns.a
 $(ldnslib):	$(ldnsdir)/lib
@@ -200,10 +201,6 @@ $(ldnsdir)/lib:
 else
 ldnslib=
 endif
-
-libunbound.la:	$(LIBUNBOUND_OBJ) $(ldnslib)
-	$(INFO) Link $@
-	$Q$(LINK_LIB) -export-symbols $(srcdir)/libunbound/ubsyms.def -o $@ $(sort $(LIBUNBOUND_OBJ)) -rpath $(libdir) $(LIBS)
 
 unbound$(EXEEXT):	$(DAEMON_OBJ) $(ldnslib)
 	$(INFO) Link $@
@@ -351,12 +348,10 @@ tags:	$(srcdir)/*.[ch] $(srcdir)/*/*.[ch]
 doc:
 	if test -n "$(doxygen)"; then \
 		$(doxygen) $(srcdir)/doc/unbound.doxygen; fi
-ifeq "$(findstring yes,$(WITH_PYUNBOUND)$(WITH_PYTHONMODULE))" "yes"
 	if test -x "`which sphinx-build 2>&1`"; then \
 		sphinx-build -b html pythonmod/doc doc/html/pythonmod; \
 		sphinx-build -b html libunbound/python/doc doc/html/pyunbound;\
 	fi
-endif
 
 strip:
 	$(STRIP) unbound$(EXEEXT)

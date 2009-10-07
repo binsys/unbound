@@ -43,20 +43,14 @@
 #include "daemon/cachedump.h"
 #include "daemon/remote.h"
 #include "daemon/worker.h"
-#include "daemon/daemon.h"
 #include "services/cache/rrset.h"
 #include "services/cache/dns.h"
-#include "services/cache/infra.h"
-#include "services/modstack.h"
 #include "util/data/msgreply.h"
 #include "util/regional.h"
 #include "util/net_help.h"
 #include "util/data/dname.h"
-#include "iterator/iterator.h"
 #include "iterator/iter_delegpt.h"
 #include "iterator/iter_utils.h"
-#include "iterator/iter_fwd.h"
-#include "iterator/iter_hints.h"
 
 /** convert to ldns rr */
 static ldns_rr*
@@ -400,16 +394,17 @@ load_rr(SSL* ssl, ldns_buffer* buf, struct regional* region,
 		*go_on = 0;
 		return 1;
 	}
+	log_info("rd %s", (char*)ldns_buffer_begin(buf));
 	status = ldns_rr_new_frm_str(&rr, (char*)ldns_buffer_begin(buf),
 		LDNS_DEFAULT_TTL, NULL, NULL);
 	if(status != LDNS_STATUS_OK) {
-		log_warn("error cannot parse rr :%s: %s",
+		(void)ssl_printf(ssl, "error cannot parse rr :%s: %s\n",
 			ldns_get_errorstr_by_id(status),
 			(char*)ldns_buffer_begin(buf));
 		return 0;
 	}
 	if(is_rrsig && ldns_rr_get_type(rr) != LDNS_RR_TYPE_RRSIG) {
-		log_warn("error expected rrsig but got %s",
+		(void)ssl_printf(ssl, "error expected rrsig but got %s\n",
 			(char*)ldns_buffer_begin(buf));
 		return 0;
 	}
@@ -420,7 +415,7 @@ load_rr(SSL* ssl, ldns_buffer* buf, struct regional* region,
 	ldns_buffer_skip(buf, 2);
 	status = ldns_rr_rdata2buffer_wire(buf, rr);
 	if(status != LDNS_STATUS_OK) {
-		log_warn("error cannot rr2wire :%s",
+		(void)ssl_printf(ssl, "error cannot rr2wire :%s\n",
 			ldns_get_errorstr_by_id(status));
 		ldns_rr_free(rr);
 		return 0;
@@ -433,7 +428,7 @@ load_rr(SSL* ssl, ldns_buffer* buf, struct regional* region,
 		ldns_buffer_begin(buf), ldns_buffer_limit(buf));
 	if(!d->rr_data[i]) {
 		ldns_rr_free(rr);
-		log_warn("error out of memory");
+		(void)ssl_printf(ssl, "error out of memory\n");
 		return 0;
 	}
 
@@ -448,7 +443,7 @@ load_rr(SSL* ssl, ldns_buffer* buf, struct regional* region,
 		rk->rk.dname = regional_alloc_init(region, 
 			ldns_buffer_begin(buf), ldns_buffer_limit(buf));
 		if(!rk->rk.dname) {
-			log_warn("error out of memory");
+			(void)ssl_printf(ssl, "error out of memory\n");
 			ldns_rr_free(rr);
 			return 0;
 		}
@@ -460,7 +455,7 @@ load_rr(SSL* ssl, ldns_buffer* buf, struct regional* region,
 
 /** move entry into cache */
 static int
-move_into_cache(struct ub_packed_rrset_key* k, 
+move_into_cache(SSL* ssl, struct ub_packed_rrset_key* k, 
 	struct packed_rrset_data* d, struct worker* worker)
 {
 	struct ub_packed_rrset_key* ak;
@@ -471,7 +466,7 @@ move_into_cache(struct ub_packed_rrset_key* k,
 
 	ak = alloc_special_obtain(&worker->alloc);
 	if(!ak) {
-		log_warn("error out of memory");
+		(void)ssl_printf(ssl, "error out of memory\n");
 		return 0;
 	}
 	ak->entry.data = NULL;
@@ -479,7 +474,7 @@ move_into_cache(struct ub_packed_rrset_key* k,
 	ak->entry.hash = rrset_key_hash(&k->rk);
 	ak->rk.dname = (uint8_t*)memdup(k->rk.dname, k->rk.dname_len);
 	if(!ak->rk.dname) {
-		log_warn("error out of memory");
+		(void)ssl_printf(ssl, "error out of memory\n");
 		ub_packed_rrset_parsedelete(ak, &worker->alloc);
 		return 0;
 	}
@@ -489,7 +484,6 @@ move_into_cache(struct ub_packed_rrset_key* k,
 		s += d->rr_len[i];
 	ad = (struct packed_rrset_data*)malloc(s);
 	if(!ad) {
-		log_warn("error out of memory");
 		ub_packed_rrset_parsedelete(ak, &worker->alloc);
 		return 0;
 	}
@@ -534,12 +528,13 @@ load_rrset(SSL* ssl, ldns_buffer* buf, struct worker* worker)
 		sizeof(*rk));
 	d = (struct packed_rrset_data*)regional_alloc_zero(region, sizeof(*d));
 	if(!rk || !d) {
-		log_warn("error out of memory");
+		(void) ssl_printf(ssl, "error out of memory\n");
 		return 0;
 	}
 
 	if(strncmp(s, ";rrset", 6) != 0) {
-		log_warn("error expected ';rrset' but got %s", s);
+		(void)ssl_printf(ssl, "error expected ';rrset' but got %s\n",
+			s);
 		return 0;
 	}
 	s += 6;
@@ -549,13 +544,11 @@ load_rrset(SSL* ssl, ldns_buffer* buf, struct worker* worker)
 	}
 	if(sscanf(s, " %u %u %u %u %u", &ttl, &rr_count, &rrsig_count,
 		&trust, &security) != 5) {
-		log_warn("error bad rrset spec %s", s);
+		(void)ssl_printf(ssl, "error bad rrset spec %s\n", s);
 		return 0;
 	}
-	if(rr_count == 0 && rrsig_count == 0) {
-		log_warn("bad rrset without contents");
+	if(rr_count == 0 && rrsig_count == 0)
 		return 0;
-	}
 	d->count = (size_t)rr_count;
 	d->rrsig_count = (size_t)rrsig_count;
 	d->security = (enum sec_status)security;
@@ -569,7 +562,7 @@ load_rrset(SSL* ssl, ldns_buffer* buf, struct worker* worker)
 	d->rr_data = regional_alloc_zero(region, 
 		sizeof(uint8_t*)*(d->count+d->rrsig_count));
 	if(!d->rr_len || !d->rr_ttl || !d->rr_data) {
-		log_warn("error out of memory");
+		(void) ssl_printf(ssl, "error out of memory\n");
 		return 0;
 	}
 	
@@ -577,14 +570,12 @@ load_rrset(SSL* ssl, ldns_buffer* buf, struct worker* worker)
 	for(i=0; i<rr_count; i++) {
 		if(!load_rr(ssl, buf, region, rk, d, i, 0, 
 			&go_on, *worker->env.now)) {
-			log_warn("could not read rr %u", i);
 			return 0;
 		}
 	}
 	for(i=0; i<rrsig_count; i++) {
 		if(!load_rr(ssl, buf, region, rk, d, i+rr_count, 1, 
 			&go_on, *worker->env.now)) {
-			log_warn("could not read rrsig %u", i);
 			return 0;
 		}
 	}
@@ -593,7 +584,7 @@ load_rrset(SSL* ssl, ldns_buffer* buf, struct worker* worker)
 		return 1;
 	}
 
-	return move_into_cache(rk, d, worker);
+	return move_into_cache(ssl, rk, d, worker);
 }
 
 /** load rrset cache */
@@ -613,7 +604,7 @@ load_rrset_cache(SSL* ssl, struct worker* worker)
 /** read qinfo from next three words */
 static char*
 load_qinfo(char* str, struct query_info* qinfo, ldns_buffer* buf, 
-	struct regional* region)
+	struct regional* region, SSL* ssl)
 {
 	/* s is part of the buf */
 	char* s = str;
@@ -625,7 +616,7 @@ load_qinfo(char* str, struct query_info* qinfo, ldns_buffer* buf,
 	if(s) s = strchr(s+1, ' ');
 	if(s) s = strchr(s+1, ' ');
 	if(!s) {
-		log_warn("error line too short, %s", str);
+		(void)ssl_printf(ssl, "error line too short, %s\n", str);
 		return NULL;
 	}
 	s[0] = 0;
@@ -634,7 +625,7 @@ load_qinfo(char* str, struct query_info* qinfo, ldns_buffer* buf,
 	/* parse them */
 	status = ldns_rr_new_question_frm_str(&rr, str, NULL, NULL);
 	if(status != LDNS_STATUS_OK) {
-		log_warn("error cannot parse: %s %s",
+		(void)ssl_printf(ssl, "error cannot parse: %s %s\n",
 			ldns_get_errorstr_by_id(status), str);
 		return NULL;
 	}
@@ -644,7 +635,7 @@ load_qinfo(char* str, struct query_info* qinfo, ldns_buffer* buf,
 	status = ldns_dname2buffer_wire(buf, ldns_rr_owner(rr));
 	ldns_rr_free(rr);
 	if(status != LDNS_STATUS_OK) {
-		log_warn("error cannot dname2wire: %s", 
+		(void)ssl_printf(ssl, "error cannot dname2wire: %s\n", 
 			ldns_get_errorstr_by_id(status));
 		return NULL;
 	}
@@ -653,7 +644,7 @@ load_qinfo(char* str, struct query_info* qinfo, ldns_buffer* buf,
 	qinfo->qname = (uint8_t*)regional_alloc_init(region, 
 		ldns_buffer_begin(buf), ldns_buffer_limit(buf));
 	if(!qinfo->qname) {
-		log_warn("error out of memory");
+		(void)ssl_printf(ssl, "error out of memory\n");
 		return NULL;
 	}
 
@@ -679,12 +670,12 @@ load_ref(SSL* ssl, ldns_buffer* buf, struct worker* worker,
 		return 1;
 	}
 
-	s = load_qinfo(s, &qinfo, buf, region);
+	s = load_qinfo(s, &qinfo, buf, region, ssl);
 	if(!s) {
 		return 0;
 	}
 	if(sscanf(s, " %u", &flags) != 1) {
-		log_warn("error cannot parse flags: %s", s);
+		(void)ssl_printf(ssl, "error cannot parse flags: %s\n", s);
 		return 0;
 	}
 
@@ -720,11 +711,11 @@ load_msg(SSL* ssl, ldns_buffer* buf, struct worker* worker)
 	regional_free_all(region);
 
 	if(strncmp(s, "msg ", 4) != 0) {
-		log_warn("error expected msg but got %s", s);
+		(void)ssl_printf(ssl, "error expected msg but got %s\n", s);
 		return 0;
 	}
 	s += 4;
-	s = load_qinfo(s, &qinf, buf, region);
+	s = load_qinfo(s, &qinf, buf, region, ssl);
 	if(!s) {
 		return 0;
 	}
@@ -732,7 +723,7 @@ load_msg(SSL* ssl, ldns_buffer* buf, struct worker* worker)
 	/* read remainder of line */
 	if(sscanf(s, " %u %u %u %u %u %u %u", &flags, &qdcount, &ttl, 
 		&security, &an, &ns, &ar) != 7) {
-		log_warn("error cannot parse numbers: %s", s);
+		(void)ssl_printf(ssl, "error cannot parse numbers: %s\n", s);
 		return 0;
 	}
 	rep.flags = (uint16_t)flags;
@@ -758,7 +749,7 @@ load_msg(SSL* ssl, ldns_buffer* buf, struct worker* worker)
 		return 1; /* skip this one, not all references satisfied */
 
 	if(!dns_cache_store(&worker->env, &qinf, &rep, 0)) {
-		log_warn("error out of memory");
+		(void)ssl_printf(ssl, "error out of memory\n");
 		return 0;
 	}
 	return 1;
@@ -788,84 +779,6 @@ load_cache(SSL* ssl, struct worker* worker)
 	return read_fixed(ssl, worker->env.scratch_buffer, "EOF");
 }
 
-/** print details on a delegation point */
-static void
-print_dp_details(SSL* ssl, struct worker* worker, struct delegpt* dp)
-{
-	char buf[257];
-	struct delegpt_addr* a;
-	int lame, dlame, rlame, rtt, edns_vs, to, lost;
-	uint8_t edns_lame_known;
-	for(a = dp->target_list; a; a = a->next_target) {
-		addr_to_str(&a->addr, a->addrlen, buf, sizeof(buf));
-		if(!ssl_printf(ssl, "%-16s\t", buf))
-			return;
-		if(a->bogus) {
-			if(!ssl_printf(ssl, "Address is BOGUS. ")) 
-				return;
-		}
-		/* lookup in infra cache */
-		/* uses type_A because most often looked up, but other
-		 * lameness won't be reported then */
-		if(!infra_get_lame_rtt(worker->env.infra_cache, 
-			&a->addr, a->addrlen, dp->name, dp->namelen,
-			LDNS_RR_TYPE_A, &lame, &dlame, &rlame, &rtt, &lost,
-			*worker->env.now)) {
-			if(!ssl_printf(ssl, "not in infra cache.\n"))
-				return;
-			continue; /* skip stuff not in infra cache */
-		}
-		if(!ssl_printf(ssl, "%s%s%srtt %d msec, %d lost. ",
-			lame?"LAME ":"", dlame?"NoDNSSEC ":"",
-			rlame?"NoAuthButRecursive ":"", rtt, lost))
-			return;
-		if(infra_host(worker->env.infra_cache, &a->addr, a->addrlen,
-			*worker->env.now, &edns_vs, &edns_lame_known, &to)) {
-			if(edns_vs == -1) {
-				if(!ssl_printf(ssl, "noEDNS%s.",
-					edns_lame_known?" probed":""))
-					return;
-			} else {
-				if(!ssl_printf(ssl, "EDNS %d%s.",
-					edns_vs, edns_lame_known?" probed":""))
-					return;
-			}
-		}
-		if(!ssl_printf(ssl, "\n"))
-			return;
-	}
-}
-
-/** print main dp info */
-static void
-print_dp_main(SSL* ssl, struct delegpt* dp, struct dns_msg* msg)
-{
-	size_t i, n_ns, n_miss, n_addr, n_res, n_avail;
-
-	/* print the dp */
-	if(msg)
-	    for(i=0; i<msg->rep->rrset_count; i++) {
-		struct ub_packed_rrset_key* k = msg->rep->rrsets[i];
-		struct packed_rrset_data* d = 
-			(struct packed_rrset_data*)k->entry.data;
-		if(d->security == sec_status_bogus) {
-			if(!ssl_printf(ssl, "Address is BOGUS:\n"))
-				return;
-		}
-		if(!dump_rrset(ssl, k, d, 0))
-			return;
-	    }
-	delegpt_count_ns(dp, &n_ns, &n_miss);
-	delegpt_count_addr(dp, &n_addr, &n_res, &n_avail);
-	/* since dp has not been used by iterator, all are available*/
-	if(!ssl_printf(ssl, "Delegation with %d names, of which %d "
-		"can be examined to query further addresses.\n"
-		"%sIt provides %d IP addresses.\n", 
-		(int)n_ns, (int)n_miss, (dp->bogus?"It is BOGUS. ":""),
-		(int)n_addr))
-		return;
-}
-
 int print_deleg_lookup(SSL* ssl, struct worker* worker, uint8_t* nm,
 	size_t nmlen, int ATTR_UNUSED(nmlabs))
 {
@@ -875,33 +788,17 @@ int print_deleg_lookup(SSL* ssl, struct worker* worker, uint8_t* nm,
 	struct regional* region = worker->scratchpad;
 	char b[260];
 	struct query_info qinfo;
-	struct iter_hints_stub* stub;
-	struct iter_env* ie;
+	size_t i, n_ns, n_miss, n_addr, n_res, n_avail;
 	regional_free_all(region);
 	qinfo.qname = nm;
 	qinfo.qname_len = nmlen;
 	qinfo.qtype = LDNS_RR_TYPE_A;
 	qinfo.qclass = LDNS_RR_CLASS_IN;
 
-	if(modstack_find(&worker->daemon->mods, "iterator") == -1) {
-		return ssl_printf(ssl, "error: no iterator module\n");
-	}
-	ie = (struct iter_env*)worker->env.modinfo[modstack_find(&worker->
-		daemon->mods, "iterator")];
-
 	dname_str(nm, b);
 	if(!ssl_printf(ssl, "The following name servers are used for lookup "
 		"of %s\n", b)) 
 		return 0;
-	
-	dp = forwards_lookup(worker->env.fwds, nm, qinfo.qclass);
-	if(dp) {
-		if(!ssl_printf(ssl, "forwarding request:\n"))
-			return 0;
-		print_dp_main(ssl, dp, NULL);
-		print_dp_details(ssl, worker, dp);
-		return 1;
-	}
 	
 	while(1) {
 		dp = dns_cache_find_delegation(&worker->env, nm, nmlen, 
@@ -911,10 +808,29 @@ int print_deleg_lookup(SSL* ssl, struct worker* worker, uint8_t* nm,
 			return ssl_printf(ssl, "no delegation from "
 				"cache; goes to configured roots\n");
 		}
+		/* print the dp */
+		for(i=0; i<msg->rep->rrset_count; i++) {
+			struct ub_packed_rrset_key* k = msg->rep->rrsets[i];
+			struct packed_rrset_data* d = 
+				(struct packed_rrset_data*)k->entry.data;
+			if(d->security == sec_status_bogus) {
+				if(!ssl_printf(ssl, "Address is BOGUS:\n"))
+					return 0;
+			}
+			if(!dump_rrset(ssl, k, d, 0))
+				return 0;
+		}
+		delegpt_count_ns(dp, &n_ns, &n_miss);
+		delegpt_count_addr(dp, &n_addr, &n_res, &n_avail);
+		/* since dp has not been used by iterator, all are available*/
+		if(!ssl_printf(ssl, "Delegation with %d names, of which %d "
+			"have no addresses in cache.\n"
+			"It provides %d IP addresses. %s\n", 
+			(int)n_ns, (int)n_miss, (int)n_addr, 
+			(dp->bogus?"It is BOGUS":"") ))
+			return 0;
 		/* go up? */
 		if(iter_dp_is_useless(&qinfo, BIT_RD, dp)) {
-			print_dp_main(ssl, dp, msg);
-			print_dp_details(ssl, worker, dp);
 			if(!ssl_printf(ssl, "cache delegation was "
 				"useless (no IP addresses)\n"))
 				return 0;
@@ -932,25 +848,8 @@ int print_deleg_lookup(SSL* ssl, struct worker* worker, uint8_t* nm,
 					return 0;
 				continue;
 			}
-		} 
-		stub = hints_lookup_stub(ie->hints, nm, qinfo.qclass, dp);
-		if(stub) {
-			if(stub->noprime) {
-				if(!ssl_printf(ssl, "The noprime stub servers "
-					"are used:\n"))
-					return 0;
-			} else {
-				if(!ssl_printf(ssl, "The stub is primed "
-						"with servers:\n"))
-					return 0;
-			}
-			print_dp_main(ssl, stub->dp, NULL);
-			print_dp_details(ssl, worker, stub->dp);
-		} else {
-			print_dp_main(ssl, dp, msg);
-			print_dp_details(ssl, worker, dp);
-		}
-		break;
+		} else
+			break;
 	}
 
 	return 1;
