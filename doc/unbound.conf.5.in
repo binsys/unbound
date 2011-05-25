@@ -471,9 +471,7 @@ From draft-vixie-dnsext-resimprove, returns nxdomain to queries for a name
 below another name that is already known to be nxdomain.  DNSSEC mandates
 noerror for empty nonterminals, hence this is possible.  Very old software
 might return nxdomain for empty nonterminals (that usually happen for reverse
-IP address lookups), and thus may be incompatible with this.  To try to avoid
-this only DNSSEC-secure nxdomains are used, because the old software does not
-have DNSSEC.  Default is off.
+IP address lookups), and thus may be incompatible with this.  Default is off.
 .TP
 .B harden\-referral\-path: \fI<yes or no>
 Harden the referral path by performing additional queries for
@@ -608,8 +606,7 @@ externally can create validation failures for that internal domain.
 Default is "" or "0", which disables this debugging feature. If enabled by
 giving a RRSIG style date, that date is used for verifying RRSIG inception
 and expiration dates, instead of the current date. Do not set this unless 
-you are debugging signature inception and expiration. The value \-1 ignores
-the date altogether, useful for some special applications.
+you are debugging signature inception and expiration.
 .TP
 .B val\-sig\-skew\-min: \fI<seconds>
 Minimum number of seconds of clock skew to apply to validated signatures.
@@ -656,14 +653,6 @@ reply is not withheld from the client with SERVFAIL as usual. The client
 receives the bogus data. For messages that are found to be secure the AD bit 
 is set in replies. Also logging is performed as for full validation.
 The default value is "no". 
-.TP
-.B ignore\-cd\-flag: \fI<yes or no>
-Instruct unbound to ignore the CD flag from clients and refuse to
-return bogus answers to them.  Thus, the CD (Checking Disabled) flag
-does not disable checking any more.  This is useful if legacy (w2008)
-servers that set the CD flag but cannot validate DNSSEC themselves are
-the clients, and then unbound provides them with DNSSEC protection.
-The default value is "no".
 .TP
 .B val\-nsec3\-keysize\-iterations: \fI<"list of values">
 List of keysize and iteration count values, separated by spaces, surrounded

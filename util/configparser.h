@@ -1,9 +1,10 @@
-/* A Bison parser, made by GNU Bison 2.4.3.  */
+
+/* A Bison parser, made by GNU Bison 2.4.1.  */
 
 /* Skeleton interface for Bison's Yacc-like parsers in C
    
-      Copyright (C) 1984, 1989, 1990, 2000, 2001, 2002, 2003, 2004, 2005, 2006,
-   2009, 2010 Free Software Foundation, Inc.
+      Copyright (C) 1984, 1989, 1990, 2000, 2001, 2002, 2003, 2004, 2005, 2006
+   Free Software Foundation, Inc.
    
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -153,8 +154,7 @@
      VAR_PREFETCH = 370,
      VAR_PREFETCH_KEY = 371,
      VAR_SO_SNDBUF = 372,
-     VAR_HARDEN_BELOW_NXDOMAIN = 373,
-     VAR_IGNORE_CD_FLAG = 374
+     VAR_HARDEN_BELOW_NXDOMAIN = 373
    };
 #endif
 /* Tokens.  */
@@ -274,7 +274,6 @@
 #define VAR_PREFETCH_KEY 371
 #define VAR_SO_SNDBUF 372
 #define VAR_HARDEN_BELOW_NXDOMAIN 373
-#define VAR_IGNORE_CD_FLAG 374
 
 
 
@@ -283,15 +282,15 @@
 typedef union YYSTYPE
 {
 
-/* Line 1685 of yacc.c  */
+/* Line 1676 of yacc.c  */
 #line 64 "util/configparser.y"
 
 	char*	str;
 
 
 
-/* Line 1685 of yacc.c  */
-#line 295 "util/configparser.h"
+/* Line 1676 of yacc.c  */
+#line 294 "util/configparser.h"
 } YYSTYPE;
 # define YYSTYPE_IS_TRIVIAL 1
 # define yystype YYSTYPE /* obsolescent; will be withdrawn */
