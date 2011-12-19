@@ -40,7 +40,7 @@
  * pending requests.
  */
 #include "config.h"
-#include <ldns/wire2host.h>
+#include "ldns/wire2host.h"
 #include "util/log.h"
 #include "util/net_help.h"
 #include "util/random.h"
@@ -1092,7 +1092,7 @@ worker_init(struct worker* worker, struct config_file *cfg,
 	}
 	worker->front = listen_create(worker->base, ports,
 		cfg->msg_buffer_size, (int)cfg->incoming_num_tcp, 
-		worker->daemon->listen_sslctx, worker_handle_request, worker);
+		worker_handle_request, worker);
 	if(!worker->front) {
 		log_err("could not create listening sockets");
 		worker_delete(worker);
@@ -1105,7 +1105,7 @@ worker_init(struct worker* worker, struct config_file *cfg,
 		worker->daemon->env->infra_cache, worker->rndstate,
 		cfg->use_caps_bits_for_id, worker->ports, worker->numports,
 		cfg->unwanted_threshold, &worker_alloc_cleanup, worker,
-		cfg->do_udp, worker->daemon->connect_sslctx);
+		cfg->do_udp);
 	if(!worker->back) {
 		log_err("could not create outgoing sockets");
 		worker_delete(worker);
@@ -1244,8 +1244,8 @@ outbound_entry_compare(void* a, void* b)
 struct outbound_entry*
 worker_send_query(uint8_t* qname, size_t qnamelen, uint16_t qtype,
 	uint16_t qclass, uint16_t flags, int dnssec, int want_dnssec,
-	struct sockaddr_storage* addr, socklen_t addrlen, uint8_t* zone,
-	size_t zonelen, struct module_qstate* q)
+	struct sockaddr_storage* addr, socklen_t addrlen,
+	struct module_qstate* q)
 {
 	struct worker* worker = q->env->worker;
 	struct outbound_entry* e = (struct outbound_entry*)regional_alloc(
@@ -1255,9 +1255,9 @@ worker_send_query(uint8_t* qname, size_t qnamelen, uint16_t qtype,
 	e->qstate = q;
 	e->qsent = outnet_serviced_query(worker->back, qname,
 		qnamelen, qtype, qclass, flags, dnssec, want_dnssec,
-		q->env->cfg->tcp_upstream, q->env->cfg->ssl_upstream, addr,
-		addrlen, zone, zonelen, worker_handle_service_reply, e,
-		worker->back->udp_buff, &outbound_entry_compare);
+		q->env->cfg->tcp_upstream, addr, addrlen,
+		worker_handle_service_reply, e, worker->back->udp_buff,
+		&outbound_entry_compare);
 	if(!e->qsent) {
 		return NULL;
 	}

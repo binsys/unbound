@@ -6,10 +6,10 @@ sinclude(acx_pthread.m4)
 sinclude(acx_python.m4)
 sinclude(ac_pkg_swig.m4)
 
-AC_INIT(unbound, 1.4.14, unbound-bugs@nlnetlabs.nl, unbound)
+AC_INIT(unbound, 1.4.13p2, unbound-bugs@nlnetlabs.nl, unbound)
 
 LIBUNBOUND_CURRENT=2
-LIBUNBOUND_REVISION=14
+LIBUNBOUND_REVISION=13
 LIBUNBOUND_AGE=0
 # 1.0.0 had 0:12:0
 # 1.0.1 had 0:13:0
@@ -38,7 +38,6 @@ LIBUNBOUND_AGE=0
 # 1.4.11 had 2:11:0
 # 1.4.12 had 2:12:0
 # 1.4.13 had 2:13:0
-# 1.4.14 had 2:14:0
 
 #   Current  -- the number of the binary API that we're implementing
 #   Revision -- which iteration of the implementation of the binary
@@ -286,31 +285,6 @@ AC_SUBST(RUNTIME_PATH)
 AC_SEARCH_LIBS([inet_pton], [nsl])
 AC_SEARCH_LIBS([socket], [socket])
 
-# check wether strptime also works
-AC_DEFUN([AC_CHECK_STRPTIME_WORKS],
-[AC_REQUIRE([AC_PROG_CC])
-AC_MSG_CHECKING(whether strptime works)
-if test c${cross_compiling} = cno; then
-AC_RUN_IFELSE([AC_LANG_SOURCE([[
-#define _XOPEN_SOURCE
-#include <time.h>
-int main(void) { struct tm tm; char *res;
-res = strptime("2010-07-15T00:00:00+00:00", "%t%Y%t-%t%m%t-%t%d%tT%t%H%t:%t%M%t:%t%S%t", &tm);
-if (!res) return 2;
-res = strptime("20070207111842", "%Y%m%d%H%M%S", &tm);
-if (!res) return 1; return 0; }
-]])] , [eval "ac_cv_c_strptime_works=yes"], [eval "ac_cv_c_strptime_works=no"])
-else
-eval "ac_cv_c_strptime_works=maybe"
-fi
-AC_MSG_RESULT($ac_cv_c_strptime_works)
-if test $ac_cv_c_strptime_works = no; then
-AC_LIBOBJ(strptime)
-else
-AC_DEFINE_UNQUOTED([STRPTIME_WORKS], 1, [use default strptime.])
-fi
-])dnl
-
 # check some functions of the OS before linking libs (while still runnable).
 AC_FUNC_CHOWN
 AC_FUNC_FORK
@@ -319,30 +293,6 @@ AC_FUNC_FSEEKO
 ACX_SYS_LARGEFILE
 ACX_CHECK_NONBLOCKING_BROKEN
 ACX_MKDIR_ONE_ARG
-AC_CHECK_FUNCS([strptime],[AC_CHECK_STRPTIME_WORKS],[AC_LIBOBJ([strptime])])
-
-# set memory allocation checking if requested
-AC_ARG_ENABLE(alloc-checks, AC_HELP_STRING([--enable-alloc-checks],
-	[ enable to memory allocation statistics, for debug purposes ]), 
-	, )
-AC_ARG_ENABLE(alloc-lite, AC_HELP_STRING([--enable-alloc-lite],
-	[ enable for lightweight alloc assertions, for debug purposes ]), 
-	, )
-AC_ARG_ENABLE(alloc-nonregional, AC_HELP_STRING([--enable-alloc-nonregional],
-	[ enable nonregional allocs, slow but exposes regional allocations to other memory purifiers, for debug purposes ]), 
-	, )
-if test x_$enable_alloc_nonregional = x_yes; then
-	AC_DEFINE(UNBOUND_ALLOC_NONREGIONAL, 1, [use malloc not regions, for debug use])
-fi
-if test x_$enable_alloc_checks = x_yes; then
-	AC_DEFINE(UNBOUND_ALLOC_STATS, 1, [use statistics for allocs and frees, for debug use])
-else
-	if test x_$enable_alloc_lite = x_yes; then
-		AC_DEFINE(UNBOUND_ALLOC_LITE, 1, [use to enable lightweight alloc assertions, for debug use])
-	else
-		ACX_FUNC_MALLOC([unbound])
-	fi
-fi
 
 # check windows threads (we use them, not pthreads, on windows).
 if test "$on_mingw" = "yes"; then
@@ -467,12 +417,6 @@ if test x_$ub_test_python != x_no; then
             AC_DEFINE(WITH_PYTHONMODULE, 1, [Define if you want Python module.])
             WITH_PYTHONMODULE=yes
             AC_SUBST(WITH_PYTHONMODULE)
-	    PYTHONMOD_OBJ="pythonmod.lo pythonmod_utils.lo"
-	    AC_SUBST(PYTHONMOD_OBJ)
-	    PYTHONMOD_INSTALL=pythonmod-install
-	    AC_SUBST(PYTHONMOD_INSTALL)
-	    PYTHONMOD_UNINSTALL=pythonmod-uninstall
-	    AC_SUBST(PYTHONMOD_UNINSTALL)
          fi
 
          # Declare PyUnbound
@@ -480,14 +424,6 @@ if test x_$ub_test_python != x_no; then
             AC_DEFINE(WITH_PYUNBOUND, 1, [Define if you want PyUnbound.])
             WITH_PYUNBOUND=yes
             AC_SUBST(WITH_PYUNBOUND)
-	    PYUNBOUND_OBJ="libunbound_wrap.lo"
-	    AC_SUBST(PYUNBOUND_OBJ)
-	    PYUNBOUND_TARGET="_unbound.la"
-	    AC_SUBST(PYUNBOUND_TARGET)
-	    PYUNBOUND_INSTALL=pyunbound-install
-	    AC_SUBST(PYUNBOUND_INSTALL)
-	    PYUNBOUND_UNINSTALL=pyunbound-uninstall
-	    AC_SUBST(PYUNBOUND_UNINSTALL)
          fi
       fi
    else
@@ -496,13 +432,6 @@ if test x_$ub_test_python != x_no; then
       ub_with_pythonmod=no
    fi
 fi
-
-if test "`uname`" = "NetBSD"; then
-	NETBSD_LINTFLAGS='"-D__RENAME(x)=" -D_NETINET_IN_H_'
-	AC_SUBST(NETBSD_LINTFLAGS)
-fi
-CONFIG_DATE=`date +%Y%m%d`
-AC_SUBST(CONFIG_DATE)
 
 # Checks for libraries.
 ACX_WITH_SSL
@@ -540,104 +469,6 @@ case "$enable_sha2" in
 	;;
 esac
 
-# check wether gost also works
-AC_DEFUN([AC_CHECK_GOST_WORKS],
-[AC_REQUIRE([AC_PROG_CC])
-AC_MSG_CHECKING([if GOST works])
-if test c${cross_compiling} = cno; then
-BAKCFLAGS="$CFLAGS"
-if test -n "$ssldir"; then
-	CFLAGS="$CFLAGS -Wl,-rpath,$ssldir/lib"
-fi
-AC_RUN_IFELSE([AC_LANG_SOURCE([[
-#include <string.h>
-#include <openssl/ssl.h>
-#include <openssl/evp.h>
-#include <openssl/engine.h>
-#include <openssl/conf.h>
-/* routine to load gost from ldns */
-int load_gost_id(void)
-{
-	static int gost_id = 0;
-	const EVP_PKEY_ASN1_METHOD* meth;
-	ENGINE* e;
-
-	if(gost_id) return gost_id;
-
-	/* see if configuration loaded gost implementation from other engine*/
-	meth = EVP_PKEY_asn1_find_str(NULL, "gost2001", -1);
-	if(meth) {
-		EVP_PKEY_asn1_get0_info(&gost_id, NULL, NULL, NULL, NULL, meth);
-		return gost_id;
-	}
-
-	/* see if engine can be loaded already */
-	e = ENGINE_by_id("gost");
-	if(!e) {
-		/* load it ourself, in case statically linked */
-		ENGINE_load_builtin_engines();
-		ENGINE_load_dynamic();
-		e = ENGINE_by_id("gost");
-	}
-	if(!e) {
-		/* no gost engine in openssl */
-		return 0;
-	}
-	if(!ENGINE_set_default(e, ENGINE_METHOD_ALL)) {
-		ENGINE_finish(e);
-		ENGINE_free(e);
-		return 0;
-	}
-
-	meth = EVP_PKEY_asn1_find_str(&e, "gost2001", -1);
-	if(!meth) {
-		/* algo not found */
-		ENGINE_finish(e);
-		ENGINE_free(e);
-		return 0;
-	}
-	EVP_PKEY_asn1_get0_info(&gost_id, NULL, NULL, NULL, NULL, meth);
-	return gost_id;
-}
-int main(void) { 
-	EVP_MD_CTX* ctx;
-	const EVP_MD* md;
-	unsigned char digest[64]; /* its a 256-bit digest, so uses 32 bytes */
-	const char* str = "Hello world";
-	const unsigned char check[] = {
-		0x40 , 0xed , 0xf8 , 0x56 , 0x5a , 0xc5 , 0x36 , 0xe1 ,
-		0x33 , 0x7c , 0x7e , 0x87 , 0x62 , 0x1c , 0x42 , 0xe0 ,
-		0x17 , 0x1b , 0x5e , 0xce , 0xa8 , 0x46 , 0x65 , 0x4d ,
-		0x8d , 0x3e , 0x22 , 0x9b , 0xe1 , 0x30 , 0x19 , 0x9d
-	};
-	OPENSSL_config(NULL);
-	(void)load_gost_id();
-	md = EVP_get_digestbyname("md_gost94");
-	if(!md) return 1;
-	memset(digest, 0, sizeof(digest));
-	ctx = EVP_MD_CTX_create();
-	if(!ctx) return 2;
-	if(!EVP_DigestInit_ex(ctx, md, NULL)) return 3;
-	if(!EVP_DigestUpdate(ctx, str, 10)) return 4;
-	if(!EVP_DigestFinal_ex(ctx, digest, NULL)) return 5;
-	/* uncomment to see the hash calculated.
-		{int i;
-		for(i=0; i<32; i++)
-			printf(" %2.2x", (int)digest[i]);
-		printf("\n");}
-	*/
-	if(memcmp(digest, check, sizeof(check)) != 0)
-		return 6;
-	return 0;
-}
-]])] , [eval "ac_cv_c_gost_works=yes"], [eval "ac_cv_c_gost_works=no"])
-CFLAGS="$BAKCFLAGS"
-else
-eval "ac_cv_c_gost_works=maybe"
-fi
-AC_MSG_RESULT($ac_cv_c_gost_works)
-])dnl
-
 AC_ARG_ENABLE(gost, AC_HELP_STRING([--disable-gost], [Disable GOST support]))
 use_gost="no"
 case "$enable_gost" in
@@ -646,11 +477,8 @@ case "$enable_gost" in
 	*)
 	AC_CHECK_FUNC(EVP_PKEY_set_type_str, [:],[AC_MSG_ERROR([OpenSSL 1.0.0 is needed for GOST support])])
         AC_CHECK_FUNC(EC_KEY_new, [], [AC_MSG_ERROR([OpenSSL does not support ECC, needed for GOST support])])
-	AC_CHECK_GOST_WORKS
-	if test $ac_cv_c_gost_works != no; then
-		use_gost="yes"
-		AC_DEFINE([USE_GOST], [1], [Define this to enable GOST support.])
-	fi
+	use_gost="yes"
+	AC_DEFINE([USE_GOST], [1], [Define this to enable GOST support.])
 	;;
 esac
 
@@ -778,34 +606,43 @@ AC_ARG_ENABLE(lock_checks, AC_HELP_STRING([--enable-lock-checks],
 	, )
 if test x_$enable_lock_checks = x_yes; then
 	AC_DEFINE(ENABLE_LOCK_CHECKS, 1, [Define if you want to use debug lock checking (slow).])
-	CHECKLOCK_OBJ="checklocks.lo"
-	AC_SUBST(CHECKLOCK_OBJ)
+	CHECKLOCK_SRC="testcode/checklocks.c"
+	AC_SUBST(CHECKLOCK_SRC)
+fi
+
+# set memory allocation checking if requested
+AC_ARG_ENABLE(alloc-checks, AC_HELP_STRING([--enable-alloc-checks],
+	[ enable to memory allocation statistics, for debug purposes ]), 
+	, )
+AC_ARG_ENABLE(alloc-lite, AC_HELP_STRING([--enable-alloc-lite],
+	[ enable for lightweight alloc assertions, for debug purposes ]), 
+	, )
+AC_ARG_ENABLE(alloc-nonregional, AC_HELP_STRING([--enable-alloc-nonregional],
+	[ enable nonregional allocs, slow but exposes regional allocations to other memory purifiers, for debug purposes ]), 
+	, )
+if test x_$enable_alloc_nonregional = x_yes; then
+	AC_DEFINE(UNBOUND_ALLOC_NONREGIONAL, 1, [use malloc not regions, for debug use])
+fi
+if test x_$enable_alloc_checks = x_yes; then
+	AC_DEFINE(UNBOUND_ALLOC_STATS, 1, [use statistics for allocs and frees, for debug use])
+else
+	if test x_$enable_alloc_lite = x_yes; then
+		AC_DEFINE(UNBOUND_ALLOC_LITE, 1, [use to enable lightweight alloc assertions, for debug use])
+	else
+		ACX_FUNC_MALLOC([unbound])
+	fi
 fi
 
 ACX_CHECK_GETADDRINFO_WITH_INCLUDES
 if test "$USE_WINSOCK" = 1; then
 	AC_DEFINE(UB_ON_WINDOWS, 1, [Use win32 resources and API])
+	UB_ON_WINDOWS=yes
+	AC_SUBST(UB_ON_WINDOWS)
 	AC_CHECK_HEADERS([iphlpapi.h],,, [AC_INCLUDES_DEFAULT
 #include <windows.h>
 	])
 	AC_CHECK_TOOL(WINDRES, windres)
 	LIBS="$LIBS -liphlpapi"
-	WINAPPS="unbound-service-install.exe unbound-service-remove.exe anchor-update.exe"
-	AC_SUBST(WINAPPS)
-	WIN_DAEMON_SRC="winrc/win_svc.c winrc/w_inst.c"
-	AC_SUBST(WIN_DAEMON_SRC)
-	WIN_DAEMON_OBJ="win_svc.lo w_inst.lo"
-	AC_SUBST(WIN_DAEMON_OBJ)
-	WIN_DAEMON_OBJ_LINK="rsrc_unbound.o"
-	AC_SUBST(WIN_DAEMON_OBJ_LINK)
-	WIN_HOST_OBJ_LINK="rsrc_unbound_host.o"
-	AC_SUBST(WIN_HOST_OBJ_LINK)
-	WIN_UBANCHOR_OBJ_LINK="rsrc_unbound_anchor.o log.lo locks.lo"
-	AC_SUBST(WIN_UBANCHOR_OBJ_LINK)
-	WIN_CONTROL_OBJ_LINK="rsrc_unbound_control.o"
-	AC_SUBST(WIN_CONTROL_OBJ_LINK)
-	WIN_CHECKCONF_OBJ_LINK="rsrc_unbound_checkconf.o"
-	AC_SUBST(WIN_CHECKCONF_OBJ_LINK)
 fi
 if test $ac_cv_func_getaddrinfo = no; then
 	AC_LIBOBJ([fake-rfc2553])
@@ -821,6 +658,29 @@ if test $ac_cv_func_daemon = yes; then
 ])
 fi
 
+# check wether strptime also works
+AC_DEFUN([AC_CHECK_STRPTIME_WORKS],
+[AC_REQUIRE([AC_PROG_CC])
+AC_MSG_CHECKING(whether strptime works)
+if test c${cross_compiling} = cno; then
+AC_RUN_IFELSE([AC_LANG_SOURCE([[
+#define _XOPEN_SOURCE
+#include <time.h>
+int main(void) { struct tm tm; char *res;
+res = strptime("20070207111842", "%Y%m%d%H%M%S", &tm);
+if (!res) return 1; return 0; }
+]])] , [eval "ac_cv_c_strptime_works=yes"], [eval "ac_cv_c_strptime_works=no"])
+else
+eval "ac_cv_c_strptime_works=maybe"
+fi
+AC_MSG_RESULT($ac_cv_c_strptime_works)
+if test $ac_cv_c_strptime_works = no; then
+AC_LIBOBJ(strptime)
+else
+AC_DEFINE_UNQUOTED([STRPTIME_WORKS], 1, [use default strptime.])
+fi
+])dnl
+AC_CHECK_FUNCS([strptime],[AC_CHECK_STRPTIME_WORKS],[AC_LIBOBJ([strptime])])
 AC_SEARCH_LIBS([setusercontext], [util])
 AC_CHECK_FUNCS([tzset sigprocmask fcntl getpwnam getrlimit setrlimit setsid sbrk chroot kill sleep usleep random srandom recvmsg sendmsg writev socketpair glob initgroups strftime localtime_r setusercontext _beginthreadex])
 AC_CHECK_FUNCS([setresuid],,[AC_CHECK_FUNCS([setreuid])])
@@ -837,76 +697,18 @@ AC_REPLACE_FUNCS(snprintf)
 AC_REPLACE_FUNCS(strlcpy)
 AC_REPLACE_FUNCS(memmove)
 AC_REPLACE_FUNCS(gmtime_r)
-LIBOBJ_WITHOUT_CTIME="$LIBOBJS"
-AC_SUBST(LIBOBJ_WITHOUT_CTIME)
 AC_REPLACE_FUNCS(ctime_r)
 
 AC_ARG_ENABLE(allsymbols, AC_HELP_STRING([--enable-allsymbols], [export all symbols from libunbound and link binaries to it, smaller install size but libunbound export table is polluted by internal symbols]))
 case "$enable_allsymbols" in
-	yes)
-	COMMON_OBJ_ALL_SYMBOLS=""
-	UBSYMS=""
-	EXTRALINK="-L. -L.libs -lunbound"
-	AC_DEFINE(EXPORT_ALL_SYMBOLS, 1, [Define this if you enabled-allsymbols from libunbound to link binaries to it for smaller install size, but the libunbound export table is polluted by internal symbols])
+	no)
+	EXPORT_ALL_SYMBOLS=no
 	;;
-	no|*)
-	COMMON_OBJ_ALL_SYMBOLS='$(COMMON_OBJ)'
-	UBSYMS='-export-symbols $(srcdir)/libunbound/ubsyms.def'
-	EXTRALINK=""
+	yes)
+	EXPORT_ALL_SYMBOLS=yes
 	;;
 esac
-AC_SUBST(COMMON_OBJ_ALL_SYMBOLS)
-AC_SUBST(EXTRALINK)
-AC_SUBST(UBSYMS)
-if test x_$enable_lock_checks = x_yes; then
-	UBSYMS="-export-symbols clubsyms.def"
-	cp ${srcdir}/libunbound/ubsyms.def clubsyms.def
-	echo lock_protect >> clubsyms.def
-	echo lock_unprotect >> clubsyms.def
-	echo lock_get_mem >> clubsyms.def
-	echo checklock_start >> clubsyms.def
-	echo checklock_stop >> clubsyms.def
-	echo checklock_lock >> clubsyms.def
-	echo checklock_unlock >> clubsyms.def
-	echo checklock_init >> clubsyms.def
-	echo checklock_thrcreate >> clubsyms.def
-	echo checklock_thrjoin >> clubsyms.def
-fi
-
-AC_MSG_CHECKING([if ${MAKE:-make} supports $< with implicit rule in scope])
-# on openBSD, the implicit rule make $< work.
-# on Solaris, it does not work ($? is changed sources, $^ lists dependencies).
-# gmake works.
-cat >conftest.make <<EOF
-all:	conftest.lo
-
-conftest.lo foo.lo bla.lo:
-	if test -f "\$<"; then touch \$@; fi
-
-.SUFFIXES: .lo
-.c.lo:
-	if test -f "\$<"; then touch \$@; fi
-
-conftest.lo:        conftest.dir/conftest.c
-EOF
-mkdir conftest.dir
-touch conftest.dir/conftest.c
-rm -f conftest.lo conftest.c
-${MAKE:-make} -f conftest.make >/dev/null
-rm -f conftest.make conftest.c conftest.dir/conftest.c
-rm -rf conftest.dir
-if test ! -f conftest.lo; then
-	AC_MSG_RESULT(no)
-	SOURCEDETERMINE='echo "$^" | awk "-F " "{print \$$1;}" > .source'
-	SOURCEFILE='`cat .source`'
-else
-	AC_MSG_RESULT(yes)
-	SOURCEDETERMINE=':'
-	SOURCEFILE='$<'
-fi
-rm -f conftest.lo
-AC_SUBST(SOURCEDETERMINE)
-AC_SUBST(SOURCEFILE)
+AC_SUBST(EXPORT_ALL_SYMBOLS)
 
 # check this after all other compilation checks, since the linking of the lib
 # may break checks after this.

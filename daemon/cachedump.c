@@ -40,7 +40,7 @@
  * to text format.
  */
 #include "config.h"
-#include <ldns/ldns.h>
+#include "ldns/ldns.h"
 #include "daemon/cachedump.h"
 #include "daemon/remote.h"
 #include "daemon/worker.h"
@@ -814,10 +814,8 @@ print_dp_details(SSL* ssl, struct worker* worker, struct delegpt* dp)
 				return;
 		}
 		/* lookup in infra cache */
-		delay=0;
 		entry_ttl = infra_get_host_rto(worker->env.infra_cache,
-			&a->addr, a->addrlen, dp->name, dp->namelen,
-			&ri, &delay, *worker->env.now);
+			&a->addr, a->addrlen, &ri, &delay, *worker->env.now);
 		if(entry_ttl == -2 && ri.rto >= USEFUL_SERVER_TOP_TIMEOUT) {
 			if(!ssl_printf(ssl, "expired, rto %d msec.\n", ri.rto))
 				return;
@@ -850,8 +848,7 @@ print_dp_details(SSL* ssl, struct worker* worker, struct delegpt* dp)
 			if(!ssl_printf(ssl, ", probedelay %d", delay))
 				return;
 		if(infra_host(worker->env.infra_cache, &a->addr, a->addrlen,
-			dp->name, dp->namelen, *worker->env.now, &edns_vs,
-			&edns_lame_known, &to)) {
+			*worker->env.now, &edns_vs, &edns_lame_known, &to)) {
 			if(edns_vs == -1) {
 				if(!ssl_printf(ssl, ", noEDNS%s.",
 					edns_lame_known?" probed":" assumed"))

@@ -156,11 +156,7 @@
      VAR_HARDEN_BELOW_NXDOMAIN = 373,
      VAR_IGNORE_CD_FLAG = 374,
      VAR_LOG_QUERIES = 375,
-     VAR_TCP_UPSTREAM = 376,
-     VAR_SSL_UPSTREAM = 377,
-     VAR_SSL_SERVICE_KEY = 378,
-     VAR_SSL_SERVICE_PEM = 379,
-     VAR_SSL_PORT = 380
+     VAR_TCP_UPSTREAM = 376
    };
 #endif
 /* Tokens.  */
@@ -283,10 +279,6 @@
 #define VAR_IGNORE_CD_FLAG 374
 #define VAR_LOG_QUERIES 375
 #define VAR_TCP_UPSTREAM 376
-#define VAR_SSL_UPSTREAM 377
-#define VAR_SSL_SERVICE_KEY 378
-#define VAR_SSL_SERVICE_PEM 379
-#define VAR_SSL_PORT 380
 
 
 
@@ -303,7 +295,7 @@ typedef union YYSTYPE
 
 
 /* Line 1685 of yacc.c  */
-#line 307 "util/configparser.h"
+#line 299 "util/configparser.h"
 } YYSTYPE;
 # define YYSTYPE_IS_TRIVIAL 1
 # define yystype YYSTYPE /* obsolescent; will be withdrawn */

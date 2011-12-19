@@ -64,15 +64,11 @@
  * Macro to perform an assertion check for fptr wlist checks.
  * Does not get disabled in optimize mode. Check adds security by layers.
  */
-#if defined(EXPORT_ALL_SYMBOLS)
-#define fptr_ok(x) /* nothing, dll-exe memory layout on win disables it */
-#else
 #define fptr_ok(x) \
 	do { if(!(x)) \
 		fatal_exit("%s:%d: %s: pointer whitelist %s failed", \
 		__FILE__, __LINE__, __func__, #x); \
 	} while(0);
-#endif
 
 /**
  * Check function pointer whitelist for comm_point callback values.
@@ -197,7 +193,6 @@ int fptr_whitelist_modenv_send_query(struct outbound_entry* (*fptr)(
 	uint8_t* qname, size_t qnamelen, uint16_t qtype, uint16_t qclass, 
 	uint16_t flags, int dnssec, int want_dnssec,
 	struct sockaddr_storage* addr, socklen_t addrlen, 
-	uint8_t* zone, size_t zonelen,
 	struct module_qstate* q));
 
 /**

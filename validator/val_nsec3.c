@@ -643,9 +643,7 @@ nsec3_hash_name(rbtree_t* table, struct regional* region, ldns_buffer* buf,
 {
 	struct nsec3_cached_hash* c;
 	struct nsec3_cached_hash looki;
-#ifdef UNBOUND_DEBUG
 	rbnode_t* n;
-#endif
 	int r;
 	looki.node.key = &looki;
 	looki.nsec3 = nsec3;
@@ -672,10 +670,7 @@ nsec3_hash_name(rbtree_t* table, struct regional* region, ldns_buffer* buf,
 	r = nsec3_calc_b32(region, buf, c);
 	if(r != 1)
 		return r;
-#ifdef UNBOUND_DEBUG
-	n =
-#endif
-	rbtree_insert(table, &c->node);
+	n = rbtree_insert(table, &c->node);
 	log_assert(n); /* cannot be duplicate, just did lookup */
 	*hash = c;
 	return 1;
@@ -1196,7 +1191,8 @@ nsec3_do_prove_nodata(struct module_env* env, struct nsec3_filter* flt,
 			return sec_status_bogus;
 		}
 		/* everything is peachy keen, except for optout spans */
-		if(ce.nc_rrset && nsec3_has_optout(ce.nc_rrset, ce.nc_rr)) {
+		log_assert(ce.nc_rrset);
+		if(nsec3_has_optout(ce.nc_rrset, ce.nc_rr)) {
 			verbose(VERB_ALGO, "nsec3 nodata proof: matching "
 				"wildcard is in optout range, insecure");
 			return sec_status_insecure;
@@ -1383,13 +1379,6 @@ nsec3_prove_nods(struct module_env* env, struct val_env* ve,
 		verbose(VERB_ALGO, "nsec3 provenods: did not match qname, "
 		          "nor found a proven closest encloser.");
 		*reason = "no NSEC3 closest encloser";
-		return sec_status_bogus;
-	}
-
-	/* robust extra check */
-	if(!ce.nc_rrset) {
-		verbose(VERB_ALGO, "nsec3 nods proof: no next closer nsec3");
-		*reason = "no NSEC3 next closer";
 		return sec_status_bogus;
 	}
 

@@ -51,7 +51,6 @@
 #include "util/data/msgparse.h"
 #include "util/data/msgreply.h"
 #include "util/data/msgencode.h"
-#include "util/data/dname.h"
 #include "util/config_file.h"
 #include "services/listen_dnsport.h"
 #include "services/outside_network.h"
@@ -549,17 +548,11 @@ static void
 do_infra_rtt(struct replay_runtime* runtime)
 {
 	struct replay_moment* now = runtime->now;
-	int rto;
-	ldns_rdf* dp = ldns_dname_new_frm_str(now->variable);
-	if(!dp) fatal_exit("cannot parse %s", now->variable);
-	rto = infra_rtt_update(runtime->infra, &now->addr,
-		now->addrlen, ldns_rdf_data(dp), ldns_rdf_size(dp),
-		atoi(now->string), -1, runtime->now_secs);
+	int rto = infra_rtt_update(runtime->infra, &now->addr,
+		now->addrlen, atoi(now->string), -1, runtime->now_secs);
 	log_addr(0, "INFRA_RTT for", &now->addr, now->addrlen);
-	log_info("INFRA_RTT(%s roundtrip %d): rto of %d", now->variable,
-		atoi(now->string), rto);
+	log_info("INFRA_RTT(roundtrip %d): rto of %d", atoi(now->string), rto);
 	if(rto == 0) fatal_exit("infra_rtt_update failed");
-	ldns_rdf_deep_free(dp);
 }
 
 /**
@@ -708,7 +701,7 @@ run_scenario(struct replay_runtime* runtime)
 struct listen_dnsport* 
 listen_create(struct comm_base* base, struct listen_port* ATTR_UNUSED(ports),
 	size_t bufsize, int ATTR_UNUSED(tcp_accept_count),
-	void* ATTR_UNUSED(sslctx), comm_point_callback_t* cb, void* cb_arg)
+	comm_point_callback_t* cb, void* cb_arg)
 {
 	struct replay_runtime* runtime = (struct replay_runtime*)base;
 	struct listen_dnsport* l= calloc(1, sizeof(struct listen_dnsport));
@@ -877,7 +870,7 @@ outside_network_create(struct comm_base* base, size_t bufsize,
 	int ATTR_UNUSED(use_caps_for_id), int* ATTR_UNUSED(availports),
 	int ATTR_UNUSED(numavailports), size_t ATTR_UNUSED(unwanted_threshold),
 	void (*unwanted_action)(void*), void* ATTR_UNUSED(unwanted_param),
-	int ATTR_UNUSED(do_udp), void* ATTR_UNUSED(sslctx))
+	int ATTR_UNUSED(do_udp))
 {
 	struct replay_runtime* runtime = (struct replay_runtime*)base;
 	struct outside_network* outnet =  calloc(1, 
@@ -962,8 +955,7 @@ pending_udp_query(struct outside_network* outnet, ldns_buffer* packet,
 struct waiting_tcp* 
 pending_tcp_query(struct outside_network* outnet, ldns_buffer* packet,
 	struct sockaddr_storage* addr, socklen_t addrlen, int timeout,
-	comm_point_callback_t* callback, void* callback_arg,
-	int ATTR_UNUSED(ssl_upstream))
+	comm_point_callback_t* callback, void* callback_arg)
 {
 	struct replay_runtime* runtime = (struct replay_runtime*)outnet->base;
 	struct fake_pending* pend = (struct fake_pending*)calloc(1,
@@ -1015,24 +1007,20 @@ pending_tcp_query(struct outside_network* outnet, ldns_buffer* packet,
 struct serviced_query* outnet_serviced_query(struct outside_network* outnet,
         uint8_t* qname, size_t qnamelen, uint16_t qtype, uint16_t qclass,
 	uint16_t flags, int dnssec, int ATTR_UNUSED(want_dnssec),
-	int ATTR_UNUSED(tcp_upstream), int ATTR_UNUSED(ssl_upstream),
-	struct sockaddr_storage* addr, socklen_t addrlen, uint8_t* zone,
-	size_t ATTR_UNUSED(zonelen), comm_point_callback_t* callback,
-	void* callback_arg, ldns_buffer* ATTR_UNUSED(buff),
-	int (*arg_compare)(void*,void*))
+	int ATTR_UNUSED(tcp_upstream), struct sockaddr_storage* addr,
+	socklen_t addrlen, comm_point_callback_t* callback, void* callback_arg, 
+	ldns_buffer* ATTR_UNUSED(buff), int (*arg_compare)(void*,void*))
 {
 	struct replay_runtime* runtime = (struct replay_runtime*)outnet->base;
 	struct fake_pending* pend = (struct fake_pending*)calloc(1,
 		sizeof(struct fake_pending));
-	char z[256];
 	ldns_status status;
 	(void)arg_compare;
 	log_assert(pend);
 	log_nametypeclass(VERB_OPS, "pending serviced query", 
 		qname, qtype, qclass);
-	dname_str(zone, z);
-	verbose(VERB_OPS, "pending serviced query zone %s flags%s%s%s%s", 
-		z, (flags&BIT_RD)?" RD":"", (flags&BIT_CD)?" CD":"",
+	verbose(VERB_OPS, "pending serviced query flags%s%s%s%s", 
+		(flags&BIT_RD)?" RD":"", (flags&BIT_CD)?" CD":"",
 		(flags&~(BIT_RD|BIT_CD))?" MORE":"", (dnssec)?" DO":"");
 
 	/* create packet with EDNS */

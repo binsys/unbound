@@ -45,7 +45,7 @@
 #  include <sys/types.h>
 #endif
 #include <sys/time.h>
-#include <ldns/wire2host.h>
+#include "ldns/wire2host.h"
 #include "services/outside_network.h"
 #include "services/listen_dnsport.h"
 #include "services/cache/infra.h"
@@ -58,7 +58,6 @@
 #include "util/net_help.h"
 #include "util/random.h"
 #include "util/fptr_wlist.h"
-#include <openssl/ssl.h>
 
 #ifdef HAVE_NETDB_H
 #include <netdb.h>
@@ -238,18 +237,6 @@ outnet_tcp_take_into_use(struct waiting_tcp* w, uint8_t* pkt, size_t pkt_len)
 			return 0;
 		}
 	}
-	if(w->outnet->sslctx && w->ssl_upstream) {
-		pend->c->ssl = outgoing_ssl_fd(w->outnet->sslctx, s);
-		if(!pend->c->ssl) {
-			pend->c->fd = s;
-			comm_point_close(pend->c);
-			return 0;
-		}
-#ifdef USE_WINSOCK
-		comm_point_tcp_win_bio_cb(pend->c, pend->c->ssl);
-#endif
-		pend->c->ssl_shake_state = comm_ssl_shake_write;
-	}
 	w->pkt = NULL;
 	w->next_waiting = (void*)pend;
 	pend->id = LDNS_ID_WIRE(pkt);
@@ -293,11 +280,6 @@ static void
 decomission_pending_tcp(struct outside_network* outnet, 
 	struct pending_tcp* pend)
 {
-	if(pend->c->ssl) {
-		SSL_shutdown(pend->c->ssl);
-		SSL_free(pend->c->ssl);
-		pend->c->ssl = NULL;
-	}
 	comm_point_close(pend->c);
 	pend->next_free = outnet->tcp_free;
 	outnet->tcp_free = pend;
@@ -553,8 +535,7 @@ outside_network_create(struct comm_base *base, size_t bufsize,
 	int do_ip6, size_t num_tcp, struct infra_cache* infra,
 	struct ub_randstate* rnd, int use_caps_for_id, int* availports, 
 	int numavailports, size_t unwanted_threshold,
-	void (*unwanted_action)(void*), void* unwanted_param, int do_udp,
-	void* sslctx)
+	void (*unwanted_action)(void*), void* unwanted_param, int do_udp)
 {
 	struct outside_network* outnet = (struct outside_network*)
 		calloc(1, sizeof(struct outside_network));
@@ -568,7 +549,6 @@ outside_network_create(struct comm_base *base, size_t bufsize,
 	outnet->num_tcp = num_tcp;
 	outnet->infra = infra;
 	outnet->rnd = rnd;
-	outnet->sslctx = sslctx;
 	outnet->svcd_overhead = 0;
 	outnet->want_to_quit = 0;
 	outnet->unwanted_threshold = unwanted_threshold;
@@ -689,7 +669,6 @@ serviced_node_del(rbnode_t* node, void* ATTR_UNUSED(arg))
 	struct serviced_query* sq = (struct serviced_query*)node;
 	struct service_callback* p = sq->cblist, *np;
 	free(sq->qbuf);
-	free(sq->zone);
 	while(p) {
 		np = p->next;
 		free(p);
@@ -1075,7 +1054,7 @@ outnet_tcptimer(void* arg)
 struct waiting_tcp* 
 pending_tcp_query(struct outside_network* outnet, ldns_buffer* packet, 
 	struct sockaddr_storage* addr, socklen_t addrlen, int timeout,
-	comm_point_callback_t* callback, void* callback_arg, int ssl_upstream)
+	comm_point_callback_t* callback, void* callback_arg)
 {
 	struct pending_tcp* pend = outnet->tcp_free;
 	struct waiting_tcp* w;
@@ -1100,7 +1079,6 @@ pending_tcp_query(struct outside_network* outnet, ldns_buffer* packet,
 	w->outnet = outnet;
 	w->cb = callback;
 	w->cb_arg = callback_arg;
-	w->ssl_upstream = ssl_upstream;
 #ifndef S_SPLINT_S
 	tv.tv_sec = timeout;
 	tv.tv_usec = 0;
@@ -1164,14 +1142,10 @@ lookup_serviced(struct outside_network* outnet, ldns_buffer* buff, int dnssec,
 /** Create new serviced entry */
 static struct serviced_query*
 serviced_create(struct outside_network* outnet, ldns_buffer* buff, int dnssec,
-	int want_dnssec, int tcp_upstream, int ssl_upstream,
-	struct sockaddr_storage* addr, socklen_t addrlen, uint8_t* zone,
-	size_t zonelen)
+	int want_dnssec, struct sockaddr_storage* addr, socklen_t addrlen)
 {
 	struct serviced_query* sq = (struct serviced_query*)malloc(sizeof(*sq));
-#ifdef UNBOUND_DEBUG
 	rbnode_t* ins;
-#endif
 	if(!sq) 
 		return NULL;
 	sq->node.key = sq;
@@ -1181,17 +1155,8 @@ serviced_create(struct outside_network* outnet, ldns_buffer* buff, int dnssec,
 		return NULL;
 	}
 	sq->qbuflen = ldns_buffer_limit(buff);
-	sq->zone = memdup(zone, zonelen);
-	if(!sq->zone) {
-		free(sq->qbuf);
-		free(sq);
-		return NULL;
-	}
-	sq->zonelen = zonelen;
 	sq->dnssec = dnssec;
 	sq->want_dnssec = want_dnssec;
-	sq->tcp_upstream = tcp_upstream;
-	sq->ssl_upstream = ssl_upstream;
 	memcpy(&sq->addr, addr, addrlen);
 	sq->addrlen = addrlen;
 	sq->outnet = outnet;
@@ -1200,10 +1165,7 @@ serviced_create(struct outside_network* outnet, ldns_buffer* buff, int dnssec,
 	sq->status = serviced_initial;
 	sq->retry = 0;
 	sq->to_be_deleted = 0;
-#ifdef UNBOUND_DEBUG
-	ins = 
-#endif
-	rbtree_insert(outnet->serviced, &sq->node);
+	ins = rbtree_insert(outnet->serviced, &sq->node);
 	log_assert(ins != NULL); /* must not be already present */
 	return sq;
 }
@@ -1237,7 +1199,6 @@ serviced_delete(struct serviced_query* sq)
 		if(sq->status == serviced_query_UDP_EDNS ||
 			sq->status == serviced_query_UDP ||
 			sq->status == serviced_query_PROBE_EDNS ||
-			sq->status == serviced_query_UDP_EDNS_FRAG ||
 			sq->status == serviced_query_UDP_EDNS_fallback) {
 			struct pending* p = (struct pending*)sq->pending;
 			if(p->pc)
@@ -1319,19 +1280,7 @@ serviced_encode(struct serviced_query* sq, ldns_buffer* buff, int with_edns)
 		edns.edns_present = 1;
 		edns.ext_rcode = 0;
 		edns.edns_version = EDNS_ADVERTISED_VERSION;
-		if(sq->status == serviced_query_UDP_EDNS_FRAG) {
-			if(addr_is_ip6(&sq->addr, sq->addrlen)) {
-				if(EDNS_FRAG_SIZE_IP6 < EDNS_ADVERTISED_SIZE)
-					edns.udp_size = EDNS_FRAG_SIZE_IP6;
-				else	edns.udp_size = EDNS_ADVERTISED_SIZE;
-			} else {
-				if(EDNS_FRAG_SIZE_IP4 < EDNS_ADVERTISED_SIZE)
-					edns.udp_size = EDNS_FRAG_SIZE_IP4;
-				else	edns.udp_size = EDNS_ADVERTISED_SIZE;
-			}
-		} else {
-			edns.udp_size = EDNS_ADVERTISED_SIZE;
-		}
+		edns.udp_size = EDNS_ADVERTISED_SIZE;
 		edns.bits = 0;
 		if(sq->dnssec & EDNS_DO)
 			edns.bits = EDNS_DO;
@@ -1355,8 +1304,8 @@ serviced_udp_send(struct serviced_query* sq, ldns_buffer* buff)
 	uint8_t edns_lame_known;
 	uint32_t now = *sq->outnet->now_secs;
 
-	if(!infra_host(sq->outnet->infra, &sq->addr, sq->addrlen, sq->zone,
-		sq->zonelen, now, &vs, &edns_lame_known, &rtt))
+	if(!infra_host(sq->outnet->infra, &sq->addr, sq->addrlen, now, &vs,
+		&edns_lame_known, &rtt))
 		return 0;
 	sq->last_rtt = rtt;
 	verbose(VERB_ALGO, "EDNS lookup known=%d vs=%d", edns_lame_known, vs);
@@ -1375,8 +1324,7 @@ serviced_udp_send(struct serviced_query* sq, ldns_buffer* buff)
 			sq->status = serviced_query_UDP; 
 		}
 	}
-	serviced_encode(sq, buff, (sq->status == serviced_query_UDP_EDNS) ||
-		(sq->status == serviced_query_UDP_EDNS_FRAG));
+	serviced_encode(sq, buff, sq->status == serviced_query_UDP_EDNS);
 	sq->last_sent_time = *sq->outnet->now_tv;
 	sq->edns_lame_known = (int)edns_lame_known;
 	verbose(VERB_ALGO, "serviced query UDP timeout=%d msec", rtt);
@@ -1439,13 +1387,11 @@ serviced_callbacks(struct serviced_query* sq, int error, struct comm_point* c,
 	int dobackup = (sq->cblist && sq->cblist->next); /* >1 cb*/
 	uint8_t *backup_p = NULL;
 	size_t backlen = 0;
-#ifdef UNBOUND_DEBUG
-	rbnode_t* rem =
-#endif
+	rbnode_t* rem;
 	/* remove from tree, and schedule for deletion, so that callbacks
 	 * can safely deregister themselves and even create new serviced
 	 * queries that are identical to this one. */
-	rbtree_delete(sq->outnet->serviced, sq);
+	rem = rbtree_delete(sq->outnet->serviced, sq);
 	log_assert(rem); /* should have been present */
 	sq->to_be_deleted = 1; 
 	verbose(VERB_ALGO, "svcd callbacks start");
@@ -1526,7 +1472,7 @@ serviced_tcp_callback(struct comm_point* c, void* arg, int error,
 			&sq->addr, sq->addrlen);
 	if(error==NETEVENT_NOERROR)
 		infra_update_tcp_works(sq->outnet->infra, &sq->addr,
-			sq->addrlen, sq->zone, sq->zonelen);
+			sq->addrlen);
 	if(error==NETEVENT_NOERROR && sq->status == serviced_query_TCP_EDNS &&
 		(LDNS_RCODE_WIRE(ldns_buffer_begin(c->buffer)) == 
 		LDNS_RCODE_FORMERR || LDNS_RCODE_WIRE(ldns_buffer_begin(
@@ -1547,30 +1493,9 @@ serviced_tcp_callback(struct comm_point* c, void* arg, int error,
 		/* only store noEDNS in cache if domain is noDNSSEC */
 		if(!sq->want_dnssec)
 		  if(!infra_edns_update(sq->outnet->infra, &sq->addr, 
-			sq->addrlen, sq->zone, sq->zonelen, -1,
-			*sq->outnet->now_secs))
+			sq->addrlen, -1, *sq->outnet->now_secs))
 			log_err("Out of memory caching no edns for host");
 		sq->status = serviced_query_TCP;
-	}
-	if(sq->tcp_upstream || sq->ssl_upstream) {
-	    struct timeval now = *sq->outnet->now_tv;
-	    if(now.tv_sec > sq->last_sent_time.tv_sec ||
-		(now.tv_sec == sq->last_sent_time.tv_sec &&
-		now.tv_usec > sq->last_sent_time.tv_usec)) {
-		/* convert from microseconds to milliseconds */
-		int roundtime = ((int)now.tv_sec - (int)sq->last_sent_time.tv_sec)*1000
-		  + ((int)now.tv_usec - (int)sq->last_sent_time.tv_usec)/1000;
-		verbose(VERB_ALGO, "measured TCP-time at %d msec", roundtime);
-		log_assert(roundtime >= 0);
-		/* only store if less then AUTH_TIMEOUT seconds, it could be
-		 * huge due to system-hibernated and we woke up */
-		if(roundtime < TCP_AUTH_QUERY_TIMEOUT*1000) {
-		    if(!infra_rtt_update(sq->outnet->infra, &sq->addr,
-			sq->addrlen, sq->zone, sq->zonelen, roundtime,
-			sq->last_rtt, (uint32_t)now.tv_sec))
-			log_err("out of memory noting rtt.");
-		}
-	    }
 	}
 	/* insert address into reply info */
 	if(!rep) {
@@ -1591,10 +1516,9 @@ serviced_tcp_initiate(struct outside_network* outnet,
 	verbose(VERB_ALGO, "initiate TCP query %s", 
 		sq->status==serviced_query_TCP_EDNS?"EDNS":"");
 	serviced_encode(sq, buff, sq->status == serviced_query_TCP_EDNS);
-	sq->last_sent_time = *sq->outnet->now_tv;
 	sq->pending = pending_tcp_query(outnet, buff, &sq->addr,
 		sq->addrlen, TCP_AUTH_QUERY_TIMEOUT, serviced_tcp_callback, 
-		sq, sq->ssl_upstream);
+		sq);
 	if(!sq->pending) {
 		/* delete from tree so that a retry by above layer does not
 		 * clash with this entry */
@@ -1609,18 +1533,16 @@ serviced_tcp_send(struct serviced_query* sq, ldns_buffer* buff)
 {
 	int vs, rtt;
 	uint8_t edns_lame_known;
-	if(!infra_host(sq->outnet->infra, &sq->addr, sq->addrlen, sq->zone,
-		sq->zonelen, *sq->outnet->now_secs, &vs, &edns_lame_known,
-		&rtt))
+	if(!infra_host(sq->outnet->infra, &sq->addr, sq->addrlen, 
+		*sq->outnet->now_secs, &vs, &edns_lame_known, &rtt))
 		return 0;
 	if(vs != -1)
 		sq->status = serviced_query_TCP_EDNS;
 	else 	sq->status = serviced_query_TCP;
 	serviced_encode(sq, buff, sq->status == serviced_query_TCP_EDNS);
-	sq->last_sent_time = *sq->outnet->now_tv;
 	sq->pending = pending_tcp_query(sq->outnet, buff, &sq->addr,
 		sq->addrlen, TCP_AUTH_QUERY_TIMEOUT, serviced_tcp_callback, 
-		sq, sq->ssl_upstream);
+		sq);
 	return sq->pending != NULL;
 }
 
@@ -1642,24 +1564,9 @@ serviced_udp_callback(struct comm_point* c, void* arg, int error,
 			 * by EDNS. */
 			sq->status = serviced_query_UDP_EDNS;
 		}
-		if(sq->status == serviced_query_UDP_EDNS && sq->last_rtt < 5000) {
-			/* fallback to 1480/1280 */
-			sq->status = serviced_query_UDP_EDNS_FRAG;
-			log_name_addr(VERB_ALGO, "try edns1xx0", sq->qbuf+10,
-				&sq->addr, sq->addrlen);
-			if(!serviced_udp_send(sq, c->buffer)) {
-				serviced_callbacks(sq, NETEVENT_CLOSED, c, rep);
-			}
-			return 0;
-		}
-		if(sq->status == serviced_query_UDP_EDNS_FRAG) {
-			/* fragmentation size did not fix it */
-			sq->status = serviced_query_UDP_EDNS;
-		}
 		sq->retry++;
 		if(!(rto=infra_rtt_update(outnet->infra, &sq->addr, sq->addrlen,
-			sq->zone, sq->zonelen, -1, sq->last_rtt,
-			(uint32_t)now.tv_sec)))
+			-1, sq->last_rtt, (uint32_t)now.tv_sec)))
 			log_err("out of memory in UDP exponential backoff");
 		if(sq->retry < OUTBOUND_UDP_RETRY) {
 			log_name_addr(VERB_ALGO, "retry query", sq->qbuf+10,
@@ -1682,8 +1589,7 @@ serviced_udp_callback(struct comm_point* c, void* arg, int error,
 		return 0;
 	}
 	if(!fallback_tcp) {
-	    if( (sq->status == serviced_query_UDP_EDNS 
-	        ||sq->status == serviced_query_UDP_EDNS_FRAG)
+	    if(sq->status == serviced_query_UDP_EDNS 
 		&& (LDNS_RCODE_WIRE(ldns_buffer_begin(c->buffer)) 
 			== LDNS_RCODE_FORMERR || LDNS_RCODE_WIRE(
 			ldns_buffer_begin(c->buffer)) == LDNS_RCODE_NOTIMPL)) {
@@ -1703,7 +1609,7 @@ serviced_udp_callback(struct comm_point* c, void* arg, int error,
 		/* only store noEDNS in cache if domain is noDNSSEC */
 		if(!sq->want_dnssec)
 		  if(!infra_edns_update(outnet->infra, &sq->addr, sq->addrlen,
-			sq->zone, sq->zonelen, -1, (uint32_t)now.tv_sec)) {
+			-1, (uint32_t)now.tv_sec)) {
 			log_err("Out of memory caching no edns for host");
 		  }
 		sq->status = serviced_query_UDP;
@@ -1713,7 +1619,7 @@ serviced_udp_callback(struct comm_point* c, void* arg, int error,
 		log_addr(VERB_ALGO, "serviced query: EDNS works for",
 			&sq->addr, sq->addrlen);
 		if(!infra_edns_update(outnet->infra, &sq->addr, sq->addrlen, 
-			sq->zone, sq->zonelen, 0, (uint32_t)now.tv_sec)) {
+			0, (uint32_t)now.tv_sec)) {
 			log_err("Out of memory caching edns works");
 		}
 		sq->edns_lame_known = 1;
@@ -1730,7 +1636,7 @@ serviced_udp_callback(struct comm_point* c, void* arg, int error,
 		  log_addr(VERB_ALGO, "serviced query: EDNS fails for",
 			&sq->addr, sq->addrlen);
 		  if(!infra_edns_update(outnet->infra, &sq->addr, sq->addrlen,
-			sq->zone, sq->zonelen, -1, (uint32_t)now.tv_sec)) {
+			-1, (uint32_t)now.tv_sec)) {
 			log_err("Out of memory caching no edns for host");
 		  }
 		} else {
@@ -1748,14 +1654,9 @@ serviced_udp_callback(struct comm_point* c, void* arg, int error,
 		  + ((int)now.tv_usec - (int)sq->last_sent_time.tv_usec)/1000;
 		verbose(VERB_ALGO, "measured roundtrip at %d msec", roundtime);
 		log_assert(roundtime >= 0);
-		/* in case the system hibernated, do not enter a huge value,
-		 * above this value gives trouble with server selection */
-		if(roundtime < 60000) {
-		    if(!infra_rtt_update(outnet->infra, &sq->addr, sq->addrlen, 
-			sq->zone, sq->zonelen, roundtime, sq->last_rtt,
-			(uint32_t)now.tv_sec))
+		if(!infra_rtt_update(outnet->infra, &sq->addr, sq->addrlen, 
+			roundtime, sq->last_rtt, (uint32_t)now.tv_sec))
 			log_err("out of memory noting rtt.");
-		}
 	    }
 	} /* end of if_!fallback_tcp */
 	/* perform TC flag check and TCP fallback after updating our
@@ -1764,7 +1665,6 @@ serviced_udp_callback(struct comm_point* c, void* arg, int error,
 		/* fallback to TCP */
 		/* this discards partial UDP contents */
 		if(sq->status == serviced_query_UDP_EDNS ||
-			sq->status == serviced_query_UDP_EDNS_FRAG ||
 			sq->status == serviced_query_UDP_EDNS_fallback)
 			/* if we have unfinished EDNS_fallback, start again */
 			sq->status = serviced_query_TCP_EDNS;
@@ -1794,9 +1694,9 @@ struct serviced_query*
 outnet_serviced_query(struct outside_network* outnet,
 	uint8_t* qname, size_t qnamelen, uint16_t qtype, uint16_t qclass,
 	uint16_t flags, int dnssec, int want_dnssec, int tcp_upstream,
-	int ssl_upstream, struct sockaddr_storage* addr, socklen_t addrlen,
-	uint8_t* zone, size_t zonelen, comm_point_callback_t* callback,
-	void* callback_arg, ldns_buffer* buff, int (*arg_compare)(void*,void*))
+	struct sockaddr_storage* addr, socklen_t addrlen, 
+	comm_point_callback_t* callback, void* callback_arg, 
+	ldns_buffer* buff, int (*arg_compare)(void*,void*))
 {
 	struct serviced_query* sq;
 	struct service_callback* cb;
@@ -1813,14 +1713,13 @@ outnet_serviced_query(struct outside_network* outnet,
 	if(!sq) {
 		/* make new serviced query entry */
 		sq = serviced_create(outnet, buff, dnssec, want_dnssec,
-			tcp_upstream, ssl_upstream, addr, addrlen, zone,
-			zonelen);
+			addr, addrlen);
 		if(!sq) {
 			free(cb);
 			return NULL;
 		}
 		/* perform first network action */
-		if(outnet->do_udp && !(tcp_upstream || ssl_upstream)) {
+		if(outnet->do_udp && !tcp_upstream) {
 			if(!serviced_udp_send(sq, buff)) {
 				(void)rbtree_delete(outnet->serviced, sq);
 				free(sq->qbuf);
@@ -1869,10 +1768,8 @@ void outnet_serviced_query_stop(struct serviced_query* sq, void* cb_arg)
 	callback_list_remove(sq, cb_arg);
 	/* if callbacks() routine scheduled deletion, let it do that */
 	if(!sq->cblist && !sq->to_be_deleted) {
-#ifdef UNBOUND_DEBUG
-		rbnode_t* rem =
-#endif
-		rbtree_delete(sq->outnet->serviced, sq);
+		rbnode_t* rem;
+		rem = rbtree_delete(sq->outnet->serviced, sq);
 		log_assert(rem); /* should be present */
 		serviced_delete(sq); 
 	}
@@ -1969,7 +1866,6 @@ serviced_get_mem(struct serviced_query* sq)
 	if(sq->status == serviced_query_UDP_EDNS ||
 		sq->status == serviced_query_UDP ||
 		sq->status == serviced_query_PROBE_EDNS ||
-		sq->status == serviced_query_UDP_EDNS_FRAG ||
 		sq->status == serviced_query_UDP_EDNS_fallback) {
 		s += sizeof(struct pending);
 		s += comm_timer_get_mem(NULL);

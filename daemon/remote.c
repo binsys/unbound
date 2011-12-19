@@ -47,7 +47,7 @@
 #include <openssl/err.h>
 #endif
 #include <ctype.h>
-#include <ldns/ldns.h>
+#include "ldns/ldns.h"
 #include "daemon/remote.h"
 #include "daemon/worker.h"
 #include "daemon/daemon.h"
@@ -91,6 +91,21 @@
 #define SQ "="
 /** if true, inhibits a lot of =0 lines from the stats output */
 static const int inhibit_zero = 1;
+
+/** log ssl crypto err */
+static void
+log_crypto_err(const char* str)
+{
+	/* error:[error code]:[library name]:[function name]:[reason string] */
+	char buf[128];
+	unsigned long e;
+	ERR_error_string_n(ERR_get_error(), buf, sizeof(buf));
+	log_err("%s crypto %s", str, buf);
+	while( (e=ERR_get_error()) ) {
+		ERR_error_string_n(e, buf, sizeof(buf));
+		log_err("and additionally crypto %s", buf);
+	}
+}
 
 /** subtract timers and the values do not overflow or become negative */
 static void
@@ -1088,6 +1103,33 @@ do_flush_stats(SSL* ssl, struct worker* worker)
 	send_ok(ssl);
 }
 
+/** flush infra cache */
+static void
+do_flush_infra(SSL* ssl, struct worker* worker, char* arg)
+{
+	struct sockaddr_storage addr;
+	socklen_t len;
+	if(strcmp(arg, "all") == 0) {
+		slabhash_clear(worker->env.infra_cache->hosts);
+		send_ok(ssl);
+		return;
+	}
+	if(!ipstrtoaddr(arg, UNBOUND_DNS_PORT, &addr, &len)) {
+		(void)ssl_printf(ssl, "error parsing ip addr: '%s'\n", arg);
+		return;
+	}
+	infra_remove_host(worker->env.infra_cache, &addr, len);
+	send_ok(ssl);
+}
+
+/** flush requestlist */
+static void
+do_flush_requestlist(SSL* ssl, struct worker* worker)
+{
+	mesh_delete_all(worker->env.mesh);
+	send_ok(ssl);
+}
+
 /**
  * Local info for deletion functions
  */
@@ -1110,70 +1152,7 @@ struct del_info {
 	size_t num_msgs;
 	/** number of key entries removed */
 	size_t num_keys;
-	/** length of addr */
-	socklen_t addrlen;
-	/** socket address for host deletion */
-	struct sockaddr_storage addr;
 };
-
-/** callback to delete hosts in infra cache */
-static void
-infra_del_host(struct lruhash_entry* e, void* arg)
-{
-	/* entry is locked */
-	struct del_info* inf = (struct del_info*)arg;
-	struct infra_key* k = (struct infra_key*)e->key;
-	if(sockaddr_cmp(&inf->addr, inf->addrlen, &k->addr, k->addrlen) == 0) {
-		struct infra_data* d = (struct infra_data*)e->data;
-		if(d->ttl >= inf->now) {
-			d->ttl = inf->expired;
-			inf->num_keys++;
-		}
-	}
-}
-
-/** flush infra cache */
-static void
-do_flush_infra(SSL* ssl, struct worker* worker, char* arg)
-{
-	struct sockaddr_storage addr;
-	socklen_t len;
-	struct del_info inf;
-	if(strcmp(arg, "all") == 0) {
-		slabhash_clear(worker->env.infra_cache->hosts);
-		send_ok(ssl);
-		return;
-	}
-	if(!ipstrtoaddr(arg, UNBOUND_DNS_PORT, &addr, &len)) {
-		(void)ssl_printf(ssl, "error parsing ip addr: '%s'\n", arg);
-		return;
-	}
-	/* delete all entries from cache */
-	/* what we do is to set them all expired */
-	inf.worker = worker;
-	inf.name = 0;
-	inf.len = 0;
-	inf.labs = 0;
-	inf.now = *worker->env.now;
-	inf.expired = *worker->env.now;
-	inf.expired -= 3; /* handle 3 seconds skew between threads */
-	inf.num_rrsets = 0;
-	inf.num_msgs = 0;
-	inf.num_keys = 0;
-	inf.addrlen = len;
-	memmove(&inf.addr, &addr, len);
-	slabhash_traverse(worker->env.infra_cache->hosts, 1, &infra_del_host,
-		&inf);
-	send_ok(ssl);
-}
-
-/** flush requestlist */
-static void
-do_flush_requestlist(SSL* ssl, struct worker* worker)
-{
-	mesh_delete_all(worker->env.mesh);
-	send_ok(ssl);
-}
 
 /** callback to delete rrsets in a zone */
 static void
@@ -1548,36 +1527,68 @@ struct infra_arg {
 	SSL* ssl;
 	/** the time now */
 	uint32_t now;
+	/** ipstr */
+	char* ipstr;
 };
+
+/** callback for every lame element in the infra cache */
+static void
+dump_infra_lame(struct lruhash_entry* e, void* arg)
+{
+	struct infra_arg* a = (struct infra_arg*)arg;
+	struct infra_lame_key* k = (struct infra_lame_key*)e->key;
+	struct infra_lame_data* d = (struct infra_lame_data*)e->data;
+	ldns_rdf* rdf;
+	size_t pos = 0;
+	char* nm;
+	/* skip expired */
+	if(d->ttl < a->now) {
+		return;
+	}
+	/* use ldns print for domain name */
+	if(ldns_wire2dname(&rdf, k->zonename, k->namelen, &pos)
+		!= LDNS_STATUS_OK)
+		return;
+	nm = ldns_rdf2str(rdf);
+	ldns_rdf_deep_free(rdf);
+	if(!ssl_printf(a->ssl, "%s lame %s ttl %d dnssec %d rec %d "
+		"A %d other %d\n", a->ipstr, nm, (int)(d->ttl - a->now),
+		d->isdnsseclame, d->rec_lame, d->lame_type_A, d->lame_other)) {
+		free(nm);
+		return;
+	}
+	free(nm);
+}
 
 /** callback for every host element in the infra cache */
 static void
 dump_infra_host(struct lruhash_entry* e, void* arg)
 {
 	struct infra_arg* a = (struct infra_arg*)arg;
-	struct infra_key* k = (struct infra_key*)e->key;
-	struct infra_data* d = (struct infra_data*)e->data;
+	struct infra_host_key* k = (struct infra_host_key*)e->key;
+	struct infra_host_data* d = (struct infra_host_data*)e->data;
 	char ip_str[1024];
-	char name[257];
 	addr_to_str(&k->addr, k->addrlen, ip_str, sizeof(ip_str));
-	dname_str(k->zonename, name);
+	a->ipstr = ip_str;
 	/* skip expired stuff (only backed off) */
 	if(d->ttl < a->now) {
 		if(d->rtt.rto >= USEFUL_SERVER_TOP_TIMEOUT) {
-			if(!ssl_printf(a->ssl, "%s %s expired rto %d\n", ip_str,
-				name, d->rtt.rto)) return;
+			if(!ssl_printf(a->ssl, "%s expired rto %d\n", ip_str,
+				d->rtt.rto)) return;
 		}
+		if(d->lameness)
+			lruhash_traverse(d->lameness, 0, &dump_infra_lame, arg);
 		return;
 	}
-	if(!ssl_printf(a->ssl, "%s %s ttl %d ping %d var %d rtt %d rto %d "
-		"ednsknown %d edns %d delay %d lame dnssec %d rec %d A %d "
-		"other %d\n", ip_str, name, (int)(d->ttl - a->now),
+	if(!ssl_printf(a->ssl, "%s ttl %d ping %d var %d rtt %d rto %d "
+		"ednsknown %d edns %d delay %d\n",
+		ip_str, (int)(d->ttl - a->now),
 		d->rtt.srtt, d->rtt.rttvar, rtt_notimeout(&d->rtt), d->rtt.rto,
 		(int)d->edns_lame_known, (int)d->edns_version,
-		(int)(a->now<d->probedelay?d->probedelay-a->now:0),
-		(int)d->isdnsseclame, (int)d->rec_lame, (int)d->lame_type_A,
-		(int)d->lame_other))
+		(int)(a->now<d->probedelay?d->probedelay-a->now:0)))
 		return;
+	if(d->lameness)
+		lruhash_traverse(d->lameness, 0, &dump_infra_lame, arg);
 }
 
 /** do the dump_infra command */

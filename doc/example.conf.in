@@ -123,17 +123,23 @@ server:
 	# cache. Items are not cached for longer. In seconds.
 	# cache-max-ttl: 86400
 
-	# the time to live (TTL) value for cached roundtrip times, lameness and
+	# the time to live (TTL) value for cached roundtrip times and
 	# EDNS version information for hosts. In seconds.
 	# infra-host-ttl: 900
+
+	# the time to live (TTL) value for cached lame delegations. In sec.
+	# infra-lame-ttl: 900
 
 	# the number of slabs to use for the Infrastructure cache.
 	# the number of slabs must be a power of 2.
 	# more slabs reduce lock contention, but fragment memory usage.
 	# infra-cache-slabs: 4
 
-	# the maximum number of hosts that are cached (roundtrip, EDNS, lame).
+	# the maximum number of hosts that are cached (roundtrip times, EDNS).
 	# infra-cache-numhosts: 10000
+
+	# the maximum size of the lame zones cached per host. in bytes.
+	# infra-cache-lame-size: 10k
 
 	# Enable IPv4, "yes" or "no".
 	# do-ip4: yes
@@ -452,17 +458,6 @@ server:
 	# You can also add PTR records using local-data directly, but then
 	# you need to do the reverse notation yourself.
 	# local-data-ptr: "192.0.2.3 www.example.com"
-
-	# service clients over SSL (on the TCP sockets), with plain DNS inside
-	# the SSL stream.  Give the certificate to use and private key.
-	# default is "" (disabled).  requires restart to take effect.
-	# ssl-service-key: "path/to/privatekeyfile.key"
-	# ssl-service-pem: "path/to/publiccertfile.pem"
-	# ssl-port: 443
-
-	# request upstream over SSL (with plain DNS inside the SSL stream).
-	# Default is no.  Can be turned on and off with unbound-control.
-	# ssl-upstream: no
 
 # Python config section. To enable:
 # o use --with-pythonmodule to configure before compiling.

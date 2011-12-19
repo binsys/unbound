@@ -2,12 +2,7 @@
 # Copyright 2009, Wouter Wijngaards, NLnet Labs.   
 # BSD licensed.
 #
-# Version 19
-# 2011-12-05 Fix getaddrinfowithincludes on windows with fedora16 mingw32-gcc.
-# 	     Fix ACX_MALLOC for redefined malloc error.
-# 	     Fix GETADDRINFO_WITH_INCLUDES to add -lws2_32
-# 2011-11-10 Fix FLTO test to not drop a.out in current directory.
-# 2011-11-01 Fix FLTO test for llvm on Lion.
+# Version 14
 # 2011-08-01 Fix nonblock test (broken at v13).
 # 2011-08-01 Fix autoconf 2.68 warnings
 # 2011-06-23 Add ACX_CHECK_FLTO to check -flto.
@@ -399,15 +394,7 @@ AC_DEFUN([ACX_CHECK_FLTO],
 [AC_MSG_CHECKING([if $CC supports -flto])
 BAKCFLAGS="$CFLAGS"
 CFLAGS="$CFLAGS -flto"
-AC_LINK_IFELSE([AC_LANG_PROGRAM([], [])], [
-    if $CC $CFLAGS -o conftest conftest.c 2>&1 | grep "warning: no debug symbols in executable" >/dev/null; then
-	CFLAGS="$BAKCFLAGS"
-	AC_MSG_RESULT(no)
-    else
-	AC_MSG_RESULT(yes)
-    fi
-    rm -f conftest conftest.c conftest.o
-], [CFLAGS="$BAKCFLAGS" ; AC_MSG_RESULT(no)])
+AC_LINK_IFELSE([AC_LANG_PROGRAM([], [])], [AC_MSG_RESULT(yes)], [CFLAGS="$BAKCFLAGS" ; AC_MSG_RESULT(no)])
 ])
 
 dnl Check the printf-format attribute (if any)
@@ -797,14 +784,7 @@ int main() {
 }
 ]])],
 dnl this case on linux, solaris, bsd
-[ac_cv_func_getaddrinfo="yes"
-dnl see if on windows
-if test "$ac_cv_header_windows_h" = "yes"; then
-	AC_DEFINE(USE_WINSOCK, 1, [Whether the windows socket API is used])
-	USE_WINSOCK="1"
-	LIBS="$LIBS -lws2_32"
-fi
-],
+[ac_cv_func_getaddrinfo="yes"],
 dnl no quick getaddrinfo, try mingw32 and winsock2 library.
 ORIGLIBS="$LIBS"
 LIBS="$LIBS -lws2_32"
@@ -1060,23 +1040,10 @@ dnl detect malloc and provide malloc compat prototype.
 dnl $1: unique name for compat code
 AC_DEFUN([ACX_FUNC_MALLOC],
 [
-	AC_MSG_CHECKING([for GNU libc compatible malloc])
-	AC_RUN_IFELSE([AC_LANG_PROGRAM(
-[[#if defined STDC_HEADERS || defined HAVE_STDLIB_H
-#include <stdlib.h>
-#else
-char *malloc ();
-#endif
-]], [ if(malloc(0) != 0) return 1;])
-],
-	[AC_MSG_RESULT([no])
-	AC_LIBOBJ(malloc)
-	AC_DEFINE_UNQUOTED([malloc], [rpl_malloc_$1], [Define if  replacement function should be used.])] ,
-	[AC_MSG_RESULT([yes])
-	AC_DEFINE([HAVE_MALLOC], 1, [If have GNU libc compatible malloc])],
-	[AC_MSG_RESULT([no (crosscompile)])
-	AC_LIBOBJ(malloc)
-	AC_DEFINE_UNQUOTED([malloc], [rpl_malloc_$1], [Define if  replacement function should be used.])] )
+	AC_FUNC_MALLOC
+	if test "$ac_cv_func_malloc_0_nonnull" = no; then
+		AC_DEFINE_UNQUOTED([malloc], [rpl_malloc_$1], [Define if  replacement function should be used.])
+	fi
 ])
 
 dnl Define fallback for fseeko and ftello if needed.

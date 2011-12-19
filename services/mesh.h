@@ -123,10 +123,6 @@ struct mesh_area {
 	/** (extended stats) rcode nodata in replies */
 	size_t ans_nodata;
 
-	/** backup of query if other operations recurse and need the
-	 * network buffers */
-	ldns_buffer* qbuf_bak;
-
 	/** double linked list of the run-to-completion query states.
 	 * These are query states with a reply */
 	struct mesh_state* forever_first;
@@ -381,8 +377,7 @@ void mesh_query_done(struct mesh_state* mstate);
  * results from this query state. These can then be changed for error 
  * or results.
  * Called when a module is module_finished or returns module_error.
- * The super query states become runnable with event module_event_pass,
- * it calls the current module for the super with the inform_super event.
+ * The super query states become runnable with event module_event_pass.
  *
  * @param mesh: mesh area to add newly runnable modules to.
  * @param mstate: the state that has results, used to find mesh state.
@@ -539,16 +534,9 @@ int mesh_state_ref_compare(const void* ap, const void* bp);
 /**
  * Make space for another recursion state for a reply in the mesh
  * @param mesh: mesh area
- * @param qbuf: query buffer to save if recursion is invoked to make space.
- *    This buffer is necessary, because the following sequence in calls
- *    can result in an overwrite of the incoming query:
- *    delete_other_mesh_query - iter_clean - serviced_delete - waiting
- *    udp query is sent - on error callback - callback sends SERVFAIL reply
- *    over the same network channel, and shared UDP buffer is overwritten.
- *    You can pass NULL if there is no buffer that must be backed up.
  * @return false if no space is available.
  */
-int mesh_make_new_space(struct mesh_area* mesh, ldns_buffer* qbuf);
+int mesh_make_new_space(struct mesh_area* mesh);
 
 /**
  * Insert mesh state into a double linked list.  Inserted at end.

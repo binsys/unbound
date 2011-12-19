@@ -60,7 +60,7 @@
 #ifndef NET_EVENT_H
 #define NET_EVENT_H
 
-#include <ldns/buffer.h>
+#include "ldns/buffer.h"
 struct comm_point;
 struct comm_reply;
 struct event_base;
@@ -159,23 +159,6 @@ struct comm_point {
 	/** linked list of free tcp_handlers to use for new queries.
 	    For tcp_accept the first entry, for tcp_handlers the next one. */
 	struct comm_point* tcp_free;
-
-	/* -------- SSL TCP DNS ------- */
-	/** the SSL object with rw bio (owned) or for commaccept ctx ref */
-	void* ssl;
-	/** handshake state for init and renegotiate */
-	enum {
-		/** no handshake, it has been done */
-		comm_ssl_shake_none = 0,
-		/** ssl initial handshake wants to read */
-		comm_ssl_shake_read,
-		/** ssl initial handshake wants to write */
-		comm_ssl_shake_write,
-		/** ssl_write wants to read */
-		comm_ssl_shake_hs_read,
-		/** ssl_read wants to write */
-		comm_ssl_shake_hs_write
-	} ssl_shake_state;
 
 	/** is this a UDP, TCP-accept or TCP socket. */
 	enum comm_point_type {
@@ -635,15 +618,5 @@ void comm_point_local_handle_callback(int fd, short event, void* arg);
  * @param arg: the comm_point structure.
  */
 void comm_point_raw_handle_callback(int fd, short event, void* arg);
-
-#ifdef USE_WINSOCK
-/**
- * Callback for openssl BIO to on windows detect WSAEWOULDBLOCK and notify
- * the winsock_event of this for proper TCP nonblocking implementation.
- * @param c: comm_point, fd must be set its struct event is registered.
- * @param ssl: openssl SSL, fd must be set so it has a bio.
- */
-void comm_point_tcp_win_bio_cb(struct comm_point* c, void* ssl);
-#endif
 
 #endif /* NET_EVENT_H */
