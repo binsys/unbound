@@ -41,7 +41,7 @@
 
 #include "config.h"
 #include <ctype.h>
-#include <ldns/ldns.h>
+#include "ldns/ldns.h"
 #include "util/log.h"
 
 #include "util/configyyrename.h"
@@ -88,10 +88,6 @@ config_create(void)
 	cfg->do_udp = 1;
 	cfg->do_tcp = 1;
 	cfg->tcp_upstream = 0;
-	cfg->ssl_service_key = NULL;
-	cfg->ssl_service_pem = NULL;
-	cfg->ssl_port = 443;
-	cfg->ssl_upstream = 0;
 	cfg->use_syslog = 1;
 	cfg->log_time_ascii = 0;
 	cfg->log_queries = 0;
@@ -121,6 +117,7 @@ config_create(void)
 	cfg->rrset_cache_size = 4 * 1024 * 1024;
 	cfg->rrset_cache_slabs = 4;
 	cfg->host_ttl = 900;
+	cfg->lame_ttl = 900;
 	cfg->bogus_ttl = 60;
 	cfg->min_ttl = 0;
 	cfg->max_ttl = 3600 * 24;
@@ -128,6 +125,7 @@ config_create(void)
 	cfg->prefetch_key = 0;
 	cfg->infra_cache_slabs = 4;
 	cfg->infra_cache_numhosts = 10000;
+	cfg->infra_cache_lame_size = 10240; /* easily 40 or more entries */
 	if(!(cfg->outgoing_avail_ports = (int*)calloc(65536, sizeof(int))))
 		goto error_exit;
 	init_outgoing_availports(cfg->outgoing_avail_ports, 65536);
@@ -330,10 +328,6 @@ int config_set_option(struct config_file* cfg, const char* opt,
 	else S_YNO("do-udp:", do_udp)
 	else S_YNO("do-tcp:", do_tcp)
 	else S_YNO("tcp-upstream:", tcp_upstream)
-	else S_YNO("ssl-upstream:", ssl_upstream)
-	else S_STR("ssl-service-key:", ssl_service_key)
-	else S_STR("ssl-service-pem:", ssl_service_pem)
-	else S_NUMBER_NONZERO("ssl-port:", ssl_port)
 	else S_YNO("interface-automatic:", if_automatic)
 	else S_YNO("do-daemonize:", do_daemonize)
 	else S_NUMBER_NONZERO("port:", port)
@@ -354,8 +348,10 @@ int config_set_option(struct config_file* cfg, const char* opt,
 	else S_YNO("prefetch-key:", prefetch_key)
 	else S_NUMBER_OR_ZERO("cache-max-ttl:", max_ttl)
 	else S_NUMBER_OR_ZERO("infra-host-ttl:", host_ttl)
+	else S_NUMBER_OR_ZERO("infra-lame-ttl:", lame_ttl)
 	else S_POW2("infra-cache-slabs:", infra_cache_slabs)
 	else S_SIZET_NONZERO("infra-cache-numhosts:", infra_cache_numhosts)
+	else S_MEMSIZE("infra-cache-lame-size:", infra_cache_lame_size)
 	else S_STR("chroot:", chrootdir)
 	else S_STR("username:", username)
 	else S_STR("directory:", directory)
@@ -575,17 +571,15 @@ config_get_option(struct config_file* cfg, const char* opt,
 	else O_YNO(opt, "prefetch", prefetch)
 	else O_DEC(opt, "cache-max-ttl", max_ttl)
 	else O_DEC(opt, "infra-host-ttl", host_ttl)
+	else O_DEC(opt, "infra-lame-ttl", lame_ttl)
 	else O_DEC(opt, "infra-cache-slabs", infra_cache_slabs)
 	else O_MEM(opt, "infra-cache-numhosts", infra_cache_numhosts)
+	else O_MEM(opt, "infra-cache-lame-size", infra_cache_lame_size)
 	else O_YNO(opt, "do-ip4", do_ip4)
 	else O_YNO(opt, "do-ip6", do_ip6)
 	else O_YNO(opt, "do-udp", do_udp)
 	else O_YNO(opt, "do-tcp", do_tcp)
 	else O_YNO(opt, "tcp-upstream", tcp_upstream)
-	else O_YNO(opt, "ssl-upstream", ssl_upstream)
-	else O_STR(opt, "ssl-service-key", ssl_service_key)
-	else O_STR(opt, "ssl-service-pem", ssl_service_pem)
-	else O_DEC(opt, "ssl-port", ssl_port)
 	else O_YNO(opt, "do-daemonize", do_daemonize)
 	else O_STR(opt, "chroot", chrootdir)
 	else O_STR(opt, "username", username)
@@ -740,8 +734,6 @@ config_delete(struct config_file* cfg)
 	free(cfg->logfile);
 	free(cfg->pidfile);
 	free(cfg->target_fetch_policy);
-	free(cfg->ssl_service_key);
-	free(cfg->ssl_service_pem);
 	if(cfg->ifs) {
 		int i;
 		for(i=0; i<cfg->num_ifs; i++)

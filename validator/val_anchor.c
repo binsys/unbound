@@ -40,8 +40,8 @@
  */
 #include "config.h"
 #include <ctype.h>
-#include <ldns/dname.h>
-#include <ldns/host2wire.h>
+#include "ldns/dname.h"
+#include "ldns/host2wire.h"
 #include "validator/val_anchor.h"
 #include "validator/val_sigcrypt.h"
 #include "validator/autotrust.h"
@@ -195,9 +195,7 @@ static struct trust_anchor*
 anchor_new_ta(struct val_anchors* anchors, uint8_t* name, int namelabs,
 	size_t namelen, uint16_t dclass)
 {
-#ifdef UNBOUND_DEBUG
 	rbnode_t* r;
-#endif
 	struct trust_anchor* ta = (struct trust_anchor*)regional_alloc(
 		anchors->region, sizeof(struct trust_anchor));
 	if(!ta)
@@ -212,10 +210,7 @@ anchor_new_ta(struct val_anchors* anchors, uint8_t* name, int namelabs,
 	ta->dclass = dclass;
 	lock_basic_init(&ta->lock);
 	lock_basic_lock(&anchors->lock);
-#ifdef UNBOUND_DEBUG
-	r =
-#endif
-	rbtree_insert(anchors->tree, &ta->node);
+	r = rbtree_insert(anchors->tree, &ta->node);
 	lock_basic_unlock(&anchors->lock);
 	log_assert(r != NULL);
 	return ta;

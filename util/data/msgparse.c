@@ -37,7 +37,7 @@
  * Routines for message parsing a packet buffer to a descriptive structure.
  */
 #include "config.h"
-#include <ldns/ldns.h>
+#include "ldns/ldns.h"
 #include "util/data/msgparse.h"
 #include "util/net_help.h"
 #include "util/data/dname.h"
@@ -503,17 +503,6 @@ find_rrset(struct msg_parse* msg, ldns_buffer* pkt, uint8_t* dname,
 				dclass);
 			if(!*rrset_prev) /* untwiddle if not found */
 				*rrset_flags ^= PACKED_RRSET_NSEC_AT_APEX;
-		}
-		if(!*rrset_prev && covtype == LDNS_RR_TYPE_SOA) {
-			/* if SOA try with SOA neg flag twiddled */
-			*rrset_flags ^= PACKED_RRSET_SOA_NEG;
-			*hash = pkt_hash_rrset_rest(dname_h, covtype, dclass, 
-				*rrset_flags);
-			*rrset_prev = msgparse_hashtable_lookup(msg, pkt, 
-				*hash, *rrset_flags, dname, dnamelen, covtype, 
-				dclass);
-			if(!*rrset_prev) /* untwiddle if not found */
-				*rrset_flags ^= PACKED_RRSET_SOA_NEG;
 		}
 		if(*rrset_prev) {
 			*prev_dname_first = (*rrset_prev)->dname;

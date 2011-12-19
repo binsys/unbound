@@ -632,13 +632,12 @@ set_recvpktinfo(int s, int family)
  * @param list: list of open ports, appended to, changed to point to list head.
  * @param rcv: receive buffer size for UDP
  * @param snd: send buffer size for UDP
- * @param ssl_port: ssl service port number
  * @return: returns false on error.
  */
 static int
 ports_create_if(const char* ifname, int do_auto, int do_udp, int do_tcp, 
 	struct addrinfo *hints, const char* port, struct listen_port** list,
-	size_t rcv, size_t snd, int ssl_port)
+	size_t rcv, size_t snd)
 {
 	int s, noip6=0;
 	if(!do_udp && !do_tcp)
@@ -683,9 +682,6 @@ ports_create_if(const char* ifname, int do_auto, int do_udp, int do_tcp,
 		}
 	}
 	if(do_tcp) {
-		int is_ssl = ((strchr(ifname, '@') && 
-			atoi(strchr(ifname, '@')+1) == ssl_port) ||
-			(!strchr(ifname, '@') && atoi(port) == ssl_port));
 		if((s = make_sock_port(SOCK_STREAM, ifname, port, hints, 1, 
 			&noip6, 0, 0)) == -1) {
 			if(noip6) {
@@ -694,10 +690,7 @@ ports_create_if(const char* ifname, int do_auto, int do_udp, int do_tcp,
 			}
 			return 0;
 		}
-		if(is_ssl)
-			verbose(VERB_ALGO, "setup TCP for SSL service");
-		if(!port_insert(list, s, is_ssl?listen_type_ssl:
-			listen_type_tcp)) {
+		if(!port_insert(list, s, listen_type_tcp)) {
 #ifndef USE_WINSOCK
 			close(s);
 #else
@@ -730,7 +723,7 @@ listen_cp_insert(struct comm_point* c, struct listen_dnsport* front)
 
 struct listen_dnsport* 
 listen_create(struct comm_base* base, struct listen_port* ports,
-	size_t bufsize, int tcp_accept_count, void* sslctx,
+	size_t bufsize, int tcp_accept_count,
 	comm_point_callback_t* cb, void *cb_arg)
 {
 	struct listen_dnsport* front = (struct listen_dnsport*)
@@ -743,7 +736,7 @@ listen_create(struct comm_base* base, struct listen_port* ports,
 		free(front);
 		return NULL;
 	}
-
+	
 	/* create comm points as needed */
 	while(ports) {
 		struct comm_point* cp = NULL;
@@ -753,11 +746,7 @@ listen_create(struct comm_base* base, struct listen_port* ports,
 		else if(ports->ftype == listen_type_tcp)
 			cp = comm_point_create_tcp(base, ports->fd, 
 				tcp_accept_count, bufsize, cb, cb_arg);
-		else if(ports->ftype == listen_type_ssl) {
-			cp = comm_point_create_tcp(base, ports->fd, 
-				tcp_accept_count, bufsize, cb, cb_arg);
-			cp->ssl = sslctx;
-		} else if(ports->ftype == listen_type_udpancil) 
+		else if(ports->ftype == listen_type_udpancil) 
 			cp = comm_point_create_udp_ancil(base, ports->fd, 
 				front->udp_buff, cb, cb_arg);
 		if(!cp) {
@@ -841,8 +830,7 @@ listening_ports_open(struct config_file* cfg)
 			if(!ports_create_if(do_auto?"::0":"::1", 
 				do_auto, cfg->do_udp, do_tcp, 
 				&hints, portbuf, &list,
-				cfg->so_rcvbuf, cfg->so_sndbuf,
-				cfg->ssl_port)) {
+				cfg->so_rcvbuf, cfg->so_sndbuf)) {
 				listening_ports_free(list);
 				return NULL;
 			}
@@ -852,8 +840,7 @@ listening_ports_open(struct config_file* cfg)
 			if(!ports_create_if(do_auto?"0.0.0.0":"127.0.0.1", 
 				do_auto, cfg->do_udp, do_tcp, 
 				&hints, portbuf, &list,
-				cfg->so_rcvbuf, cfg->so_sndbuf,
-				cfg->ssl_port)) {
+				cfg->so_rcvbuf, cfg->so_sndbuf)) {
 				listening_ports_free(list);
 				return NULL;
 			}
@@ -865,8 +852,7 @@ listening_ports_open(struct config_file* cfg)
 			hints.ai_family = AF_INET6;
 			if(!ports_create_if(cfg->ifs[i], 0, cfg->do_udp, 
 				do_tcp, &hints, portbuf, &list, 
-				cfg->so_rcvbuf, cfg->so_sndbuf,
-				cfg->ssl_port)) {
+				cfg->so_rcvbuf, cfg->so_sndbuf)) {
 				listening_ports_free(list);
 				return NULL;
 			}
@@ -876,8 +862,7 @@ listening_ports_open(struct config_file* cfg)
 			hints.ai_family = AF_INET;
 			if(!ports_create_if(cfg->ifs[i], 0, cfg->do_udp, 
 				do_tcp, &hints, portbuf, &list, 
-				cfg->so_rcvbuf, cfg->so_sndbuf,
-				cfg->ssl_port)) {
+				cfg->so_rcvbuf, cfg->so_sndbuf)) {
 				listening_ports_free(list);
 				return NULL;
 			}

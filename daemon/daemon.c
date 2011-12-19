@@ -55,7 +55,7 @@
 #ifdef HAVE_OPENSSL_ENGINE_H
 #include <openssl/engine.h>
 #endif
-#include <ldns/ldns.h>
+#include "ldns/ldns.h"
 #include "daemon/daemon.h"
 #include "daemon/worker.h"
 #include "daemon/remote.h"
@@ -528,8 +528,6 @@ daemon_delete(struct daemon* daemon)
 	free(daemon->chroot);
 	free(daemon->pidfile);
 	free(daemon->env);
-	SSL_CTX_free((SSL_CTX*)daemon->listen_sslctx);
-	SSL_CTX_free((SSL_CTX*)daemon->connect_sslctx);
 	free(daemon);
 #ifdef LEX_HAS_YYLEX_DESTROY
 	/* lex cleanup */

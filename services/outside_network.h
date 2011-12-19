@@ -118,8 +118,6 @@ struct outside_network {
 	struct infra_cache* infra;
 	/** where to get random numbers */
 	struct ub_randstate* rnd;
-	/** ssl context to create ssl wrapped TCP with DNS connections */
-	void* sslctx;
 
 	/**
 	 * Array of tcp pending used for outgoing TCP connections.
@@ -262,8 +260,6 @@ struct waiting_tcp {
 	comm_point_callback_t* cb;
 	/** callback user argument */
 	void* cb_arg;
-	/** if it uses ssl upstream */
-	int ssl_upstream;
 };
 
 /**
@@ -277,11 +273,6 @@ struct service_callback {
 	/** user argument for callback function */
 	void* cb_arg;
 };
-
-/** fallback size for fragmentation for EDNS in IPv4 */
-#define EDNS_FRAG_SIZE_IP4 1480
-/** fallback size for EDNS in IPv6, fits one fragment with ip6-tunnel-ids */
-#define EDNS_FRAG_SIZE_IP6 1260
 
 /**
  * Query service record.
@@ -302,16 +293,10 @@ struct serviced_query {
 	int dnssec;
 	/** We want signatures, or else the answer is likely useless */
 	int want_dnssec;
-	/** tcp upstream used, use tcp, or ssl_upstream for SSL */
-	int tcp_upstream, ssl_upstream;
 	/** where to send it */
 	struct sockaddr_storage addr;
 	/** length of addr field in use. */
 	socklen_t addrlen;
-	/** zone name, uncompressed domain name in wireformat */
-	uint8_t* zone;
-	/** length of zone name */
-	size_t zonelen;
 	/** current status */
 	enum serviced_query_status {
 		/** initial status */
@@ -329,9 +314,7 @@ struct serviced_query {
 		/** probe to test noEDNS0 (EDNS gives FORMERRorNOTIMP) */
 		serviced_query_UDP_EDNS_fallback,
 		/** probe to test TCP noEDNS0 (EDNS gives FORMERRorNOTIMP) */
-		serviced_query_TCP_EDNS_fallback,
-		/** send UDP query with EDNS1480 (or 1280) */
-		serviced_query_UDP_EDNS_FRAG
+		serviced_query_TCP_EDNS_fallback
 	} 	
 		/** variable with current status */ 
 		status;
@@ -373,7 +356,6 @@ struct serviced_query {
  * @param unwanted_action: the action to take.
  * @param unwanted_param: user parameter to action.
  * @param do_udp: if udp is done.
- * @param sslctx: context to create outgoing connections with (if enabled).
  * @return: the new structure (with no pending answers) or NULL on error.
  */
 struct outside_network* outside_network_create(struct comm_base* base,
@@ -381,8 +363,7 @@ struct outside_network* outside_network_create(struct comm_base* base,
 	int do_ip4, int do_ip6, size_t num_tcp, struct infra_cache* infra, 
 	struct ub_randstate* rnd, int use_caps_for_id, int* availports, 
 	int numavailports, size_t unwanted_threshold,
-	void (*unwanted_action)(void*), void* unwanted_param, int do_udp,
-	void* sslctx);
+	void (*unwanted_action)(void*), void* unwanted_param, int do_udp);
 
 /**
  * Delete outside_network structure.
@@ -425,13 +406,12 @@ struct pending* pending_udp_query(struct outside_network* outnet,
  *    without any query been sent to the server yet.
  * @param callback: function to call on error, timeout or reply.
  * @param callback_arg: user argument for callback function.
- * @param ssl_upstream: if the tcp connection must use SSL.
  * @return: false on error for malloc or socket. Else the pending TCP object.
  */
 struct waiting_tcp* pending_tcp_query(struct outside_network* outnet, 
 	ldns_buffer* packet, struct sockaddr_storage* addr, 
 	socklen_t addrlen, int timeout, comm_point_callback_t* callback, 
-	void* callback_arg, int ssl_upstream);
+	void* callback_arg);
 
 /**
  * Delete pending answer.
@@ -456,15 +436,10 @@ void pending_delete(struct outside_network* outnet, struct pending* p);
  * @param want_dnssec: signatures are needed, without EDNS the answer is
  * 	likely to be useless.
  * @param tcp_upstream: use TCP for upstream queries.
- * @param ssl_upstream: use SSL for upstream queries.
  * @param callback: callback function.
  * @param callback_arg: user argument to callback function.
  * @param addr: to which server to send the query.
  * @param addrlen: length of addr.
- * @param zone: name of the zone of the delegation point. wireformat dname.
-	This is the delegation point name for which the server is deemed
-	authoritative.
- * @param zonelen: length of zone.
  * @param buff: scratch buffer to create query contents in. Empty on exit.
  * @param arg_compare: function to compare callback args, return true if 
  * 	identical. It is given the callback_arg and args that are listed.
@@ -474,10 +449,9 @@ void pending_delete(struct outside_network* outnet, struct pending* p);
 struct serviced_query* outnet_serviced_query(struct outside_network* outnet,
 	uint8_t* qname, size_t qnamelen, uint16_t qtype, uint16_t qclass,
 	uint16_t flags, int dnssec, int want_dnssec, int tcp_upstream,
-	int ssl_upstream, struct sockaddr_storage* addr, socklen_t addrlen,
-	uint8_t* zone, size_t zonelen, comm_point_callback_t* callback,
-	void* callback_arg, ldns_buffer* buff,
-	int (*arg_compare)(void*,void*));
+	struct sockaddr_storage* addr, socklen_t addrlen, 
+	comm_point_callback_t* callback, void* callback_arg, 
+	ldns_buffer* buff, int (*arg_compare)(void*,void*));
 
 /**
  * Remove service query callback.

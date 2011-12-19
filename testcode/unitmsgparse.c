@@ -39,7 +39,7 @@
  */
 
 #include "config.h"
-#include <ldns/ldns.h>
+#include "ldns/ldns.h"
 #include "util/log.h"
 #include "testcode/unitmain.h"
 #include "util/data/msgparse.h"
@@ -59,8 +59,6 @@ static int check_formerr_gone = 0;
 static int matches_nolocation = 0;
 /** see if RRSIGs are properly matched to RRsets. */
 static int check_rrsigs = 0;
-/** do not check buffer sameness */
-static int check_nosameness = 0;
 
 /** match two rr lists */
 static int
@@ -433,8 +431,7 @@ testpkt(ldns_buffer* pkt, struct alloc_cache* alloc, ldns_buffer* out,
 		if(vbmp) printf("inlen %u outlen %u\n", 
 			(unsigned)ldns_buffer_limit(pkt),
 			(unsigned)ldns_buffer_limit(out));
-		if(!check_nosameness)
-			test_buffers(pkt, out);
+		test_buffers(pkt, out);
 		if(check_rrsigs)
 			check_the_rrsigs(&qi, rep);
 
@@ -609,12 +606,6 @@ void msgparse_test(void)
 	check_formerr_gone = 1;
 	testfromdrillfile(pkt, &alloc, out, "testdata/test_packets.8");
 	check_formerr_gone = 0;
-
-	check_rrsigs = 1;
-	check_nosameness = 1;
-	testfromdrillfile(pkt, &alloc, out, "testdata/test_packets.9");
-	check_nosameness = 0;
-	check_rrsigs = 0;
 
 	/* cleanup */
 	alloc_clear(&alloc);

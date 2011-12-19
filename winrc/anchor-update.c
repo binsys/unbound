@@ -40,7 +40,7 @@
  * windows (no shell). 
  */
 #include "config.h"
-#include <ldns/ldns.h>
+#include "ldns/ldns.h"
 #include "libunbound/unbound.h"
 
 /** usage */
@@ -85,7 +85,7 @@ result2answer(struct ub_result* result)
 {
 	ldns_pkt* p = NULL;
 	ldns_rr_list* a;
-	if(ldns_wire2pkt(&p, result->answer_packet, (size_t)result->answer_len) 
+	if(ldns_wire2pkt(&p, result->answer_packet, result->answer_len) 
 		!= LDNS_STATUS_OK) 
 		return NULL;
 	a = ldns_pkt_answer(p);

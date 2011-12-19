@@ -1583,9 +1583,7 @@ xml_parse(BIO* xml, time_t now)
 		(void)BIO_seek(data.ds, 0);
 		len = BIO_get_mem_data(data.ds, &pp);
 		printf("got DS bio %d: '", len);
-		if(!fwrite(pp, (size_t)len, 1, stdout))
-			/* compilers do not allow us to ignore fwrite .. */
-			fprintf(stderr, "error writing to stdout\n");
+		(void)fwrite(pp, (size_t)len, 1, stdout);
 		printf("'\n");
 	}
 	BIO_free(data.czone);

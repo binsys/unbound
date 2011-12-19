@@ -79,15 +79,6 @@ struct config_file {
 	/** tcp upstream queries (no UDP upstream queries) */
 	int tcp_upstream;
 
-	/** private key file for dnstcp-ssl service (enabled if not NULL) */
-	char* ssl_service_key;
-	/** public key file for dnstcp-ssl service */
-	char* ssl_service_pem;
-	/** port on which to provide ssl service */
-	int ssl_port;
-	/** if outgoing tcp connections use SSL */
-	int ssl_upstream;
-
 	/** outgoing port range number of ports (per thread) */
 	int outgoing_num_ports;
 	/** number of outgoing tcp buffers per (per thread) */
@@ -115,10 +106,14 @@ struct config_file {
 	size_t rrset_cache_slabs;
 	/** host cache ttl in seconds */
 	int host_ttl;
+	/** host is lame for a zone ttl, in seconds */
+	int lame_ttl;
 	/** number of slabs in the infra host cache */
 	size_t infra_cache_slabs;
 	/** max number of hosts in the infra cache */
 	size_t infra_cache_numhosts;
+	/** max size of lame zones per host in the infra cache */
+	size_t infra_cache_lame_size;
 
 	/** the target fetch policy for the iterator */
 	char* target_fetch_policy;

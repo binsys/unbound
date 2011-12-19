@@ -44,7 +44,6 @@
 #include "config.h"
 #include <ldns/dname.h>
 #include <ldns/wire2host.h>
-#include <openssl/ssl.h>
 #include "libunbound/libworker.h"
 #include "libunbound/context.h"
 #include "libunbound/unbound.h"
@@ -85,7 +84,6 @@ libworker_delete(struct libworker* w)
 		ub_randfree(w->env->rnd);
 		free(w->env);
 	}
-	SSL_CTX_free(w->sslctx);
 	outside_network_delete(w->back);
 	comm_base_delete(w->base);
 	free(w);
@@ -125,13 +123,6 @@ libworker_setup(struct ub_ctx* ctx, int is_bg)
 	if(w->env->fwds && !forwards_apply_cfg(w->env->fwds, cfg)) { 
 		forwards_delete(w->env->fwds);
 		w->env->fwds = NULL;
-	}
-	if(cfg->ssl_upstream) {
-		w->sslctx = connect_sslctx_create(NULL, NULL, NULL);
-		if(!w->sslctx) {
-			libworker_delete(w);
-			return NULL;
-		}
 	}
 	if(!w->is_bg || w->is_bg_thread) {
 		lock_basic_unlock(&ctx->cfglock);
@@ -180,7 +171,7 @@ libworker_setup(struct ub_ctx* ctx, int is_bg)
 		cfg->do_tcp?cfg->outgoing_num_tcp:0,
 		w->env->infra_cache, w->env->rnd, cfg->use_caps_bits_for_id,
 		ports, numports, cfg->unwanted_threshold,
-		&libworker_alloc_cleanup, w, cfg->do_udp, w->sslctx);
+		&libworker_alloc_cleanup, w, cfg->do_udp);
 	if(!w->is_bg || w->is_bg_thread) {
 		lock_basic_unlock(&ctx->cfglock);
 	}
@@ -270,12 +261,7 @@ libworker_dobg(void* arg)
 	/* setup */
 	uint32_t m;
 	struct libworker* w = (struct libworker*)arg;
-	struct ub_ctx* ctx;
-	if(!w) {
-		log_err("libunbound bg worker init failed, nomem");
-		return NULL;
-	}
-	ctx = w->ctx;
+	struct ub_ctx* ctx = w->ctx;
 	log_thread_set(&w->thread_num);
 #ifdef THREADS_DISABLED
 	/* we are forked */
@@ -284,6 +270,10 @@ libworker_dobg(void* arg)
 	tube_close_write(ctx->qq_pipe);
 	tube_close_read(ctx->rr_pipe);
 #endif
+	if(!w) {
+		log_err("libunbound bg worker init failed, nomem");
+		return NULL;
+	}
 	if(!tube_setup_bg_listen(ctx->qq_pipe, w->base, 
 		libworker_handle_control_cmd, w)) {
 		log_err("libunbound bg worker init failed, no bglisten");
@@ -320,11 +310,11 @@ int libworker_bg(struct ub_ctx* ctx)
 	if(ctx->dothread) {
 		lock_basic_unlock(&ctx->cfglock);
 		w = libworker_setup(ctx, 1);
-		if(!w) return UB_NOMEM;
 		w->is_bg_thread = 1;
 #ifdef ENABLE_LOCK_CHECKS
 		w->thread_num = 1; /* for nicer DEBUG checklocks */
 #endif
+		if(!w) return UB_NOMEM;
 		ub_thread_create(&ctx->bg_tid, libworker_dobg, w);
 	} else {
 		lock_basic_unlock(&ctx->cfglock);
@@ -694,7 +684,7 @@ outbound_entry_compare(void* a, void* b)
 struct outbound_entry* libworker_send_query(uint8_t* qname, size_t qnamelen,
         uint16_t qtype, uint16_t qclass, uint16_t flags, int dnssec,
 	int want_dnssec, struct sockaddr_storage* addr, socklen_t addrlen,
-	uint8_t* zone, size_t zonelen, struct module_qstate* q)
+        struct module_qstate* q)
 {
 	struct libworker* w = (struct libworker*)q->env->worker;
 	struct outbound_entry* e = (struct outbound_entry*)regional_alloc(
@@ -704,9 +694,9 @@ struct outbound_entry* libworker_send_query(uint8_t* qname, size_t qnamelen,
 	e->qstate = q;
 	e->qsent = outnet_serviced_query(w->back, qname,
 		qnamelen, qtype, qclass, flags, dnssec, want_dnssec,
-		q->env->cfg->tcp_upstream, q->env->cfg->ssl_upstream, addr,
-		addrlen, zone, zonelen, libworker_handle_service_reply, e,
-		w->back->udp_buff, &outbound_entry_compare);
+		q->env->cfg->tcp_upstream, addr, addrlen,
+		libworker_handle_service_reply, e, w->back->udp_buff,
+		&outbound_entry_compare);
 	if(!e->qsent) {
 		return NULL;
 	}
