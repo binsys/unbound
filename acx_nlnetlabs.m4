@@ -2,8 +2,7 @@
 # Copyright 2009, Wouter Wijngaards, NLnet Labs.   
 # BSD licensed.
 #
-# Version 20
-# 2012-01-20 Fix COMPILER_FLAGS_UNBOUND for gcc 4.6.2 assigned-not-used-warns.
+# Version 19
 # 2011-12-05 Fix getaddrinfowithincludes on windows with fedora16 mingw32-gcc.
 # 	     Fix ACX_MALLOC for redefined malloc error.
 # 	     Fix GETADDRINFO_WITH_INCLUDES to add -lws2_32
@@ -260,8 +259,6 @@ int test() {
 	a = getopt(2, opts, "a");
 	a = isascii(32);
 	str = gai_strerror(0);
-	if(str && t && tv.tv_usec && msg.msg_control)
-		a = 0;
 	return a;
 }
 ], [CFLAGS="$CFLAGS $C99FLAG -D__EXTENSIONS__ -D_BSD_SOURCE -D_POSIX_C_SOURCE=200112 -D_XOPEN_SOURCE=600 -D_XOPEN_SOURCE_EXTENDED=1 -D_ALL_SOURCE"])
@@ -297,8 +294,6 @@ int test() {
 	a = getopt(2, opts, "a");
 	a = isascii(32);
 	str = gai_strerror(0);
-	if(str && t && tv.tv_usec && msg.msg_control)
-		a = 0;
 	return a;
 }
 ], [CFLAGS="$CFLAGS $C99FLAG -D__EXTENSIONS__ -D_BSD_SOURCE -D_POSIX_C_SOURCE=200112 -D_XOPEN_SOURCE=600 -D_ALL_SOURCE"])
@@ -365,8 +360,6 @@ int test() {
 	const char* str = NULL;
         t = ctime_r(&time, buf);
 	str = gai_strerror(0);
-	if(t && str)
-		a = 0;
         return a;
 }
 ], [CFLAGS="$CFLAGS -D_POSIX_C_SOURCE=200112"])
@@ -393,8 +386,6 @@ int test() {
         srandom(32);
         a = getopt(2, opts, "a");
         a = isascii(32);
-	if(tv.tv_usec)
-		a = 0;
         return a;
 }
 ], [CFLAGS="$CFLAGS -D__EXTENSIONS__"])
